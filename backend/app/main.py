@@ -7,10 +7,10 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from . import config
-from .routers import logos, pdfs, stamp
+from .routers import logos, pdfs, presets, stamp
 from .schemas import HealthResponse
 
-VERSION = "1.0.0"
+VERSION = "1.3.0"
 
 app = FastAPI(title="PDF Logo Stamper", version=VERSION,
               description="วางโลโก้มุมขวาบนของทุกหน้า PDF (เลือกโลโก้ + ปรับ size/margin/opacity)")
@@ -29,6 +29,7 @@ app.add_middleware(
 app.include_router(logos.router)
 app.include_router(pdfs.router)
 app.include_router(stamp.router)
+app.include_router(presets.router)
 
 
 @app.on_event("startup")

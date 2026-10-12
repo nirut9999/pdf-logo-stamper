@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref, reactive, computed } from 'vue'
+import { ref, reactive, computed, watch } from 'vue'
 import api from '../api/api'
 
 // Store เดียวที่เป็น source of truth — component ห้ามเรียก axios ตรงๆ
@@ -7,6 +7,8 @@ export const useStamper = defineStore('stamper', () => {
   const logos = ref([])
   const pdfs = ref([])
   const fonts = ref(['Helvetica-Bold'])
+  const presets = ref([])
+  const editingPresetId = ref(null)   // preset ที่เปิดอยู่ (บันทึก = เขียนทับ)
   const selectedLogoId = ref(null)
   const selectedPdfIds = ref([])   // ที่จะ stamp (ค่า default = ทุกไฟล์ที่อัปโหลด)
   const previewPdfId = ref(null)
@@ -182,15 +184,102 @@ export const useStamper = defineStore('stamper', () => {
     } catch { /* ใช้ค่า default ต่อไป */ }
   }
 
+  // ---------- presets (ชุดการตั้งค่าที่บันทึกไว้) ----------
+  const LS_KEY = 'pls.last-config.v1'
+  let _ready = false   // gate: ห้าม persist ก่อน restore จบ — ไม่งั้น watch ตอน init เขียน default ทับของจริง
+
+  function _persistLocal() {
+    if (!_ready) return
+    try {
+      localStorage.setItem(LS_KEY, JSON.stringify({
+        options: { ...options }, selectedLogoId: selectedLogoId.value,
+        editingPresetId: editingPresetId.value,
+      }))
+    } catch { /* storage เต็ม/privacy mode — ไม่ fatal */ }
+  }
+
+  function _restoreLocal() {
+    try {
+      const raw = localStorage.getItem(LS_KEY)
+      if (!raw) return
+      const saved = JSON.parse(raw)
+      if (saved.options && typeof saved.options === 'object') {
+        for (const k of Object.keys(options)) {
+          if (k in saved.options && saved.options[k] !== null && saved.options[k] !== undefined) options[k] = saved.options[k]
+          else if (k in saved.options && saved.options[k] === null) options[k] = null
+        }
+      }
+      if (saved.selectedLogoId && logos.value.some((l) => l.id === saved.selectedLogoId)) {
+        selectedLogoId.value = saved.selectedLogoId
+        editingPresetId.value = saved.editingPresetId ?? null
+      }
+    } catch { /* config เก่าพัง — ใช้ default */ }
+  }
+
+  async function loadPresets() {
+    try {
+      const { data } = await api.get('/api/presets')
+      presets.value = Array.isArray(data) ? data : []
+    } catch { presets.value = [] }
+  }
+
+  async function savePreset(name) {
+    const body = { name: (name || '').trim() || 'งานของฉัน', logo_id: selectedLogoId.value, options: _payload() }
+    if (editingPresetId.value) body.id = editingPresetId.value
+    const { data } = await api.post('/api/presets', body)
+    const i = presets.value.findIndex((p) => p.id === data.id)
+    if (i >= 0) presets.value[i] = data; else presets.value.unshift(data)
+    editingPresetId.value = data.id
+    status.notice = `บันทึก "${data.name}" แล้ว — คราวหน้าคลิกใช้ได้เลย`
+    return data
+  }
+
+  function applyPreset(id) {
+    const p = presets.value.find((x) => x.id === id)
+    if (!p) return
+    Object.assign(options, p.options)
+    if (p.options.page_scope && /^[\d,\-\s]+$/.test(p.options.page_scope)) {
+      options.page_scope = 'custom'; options.custom_pages = p.options.page_scope
+    } else if (['all', 'first'].includes(p.options.page_scope)) {
+      options.custom_pages = ''
+    }
+    const logoGone = p.logo_id && !logos.value.some((l) => l.id === p.logo_id)
+    if (p.logo_id && !logoGone) selectedLogoId.value = p.logo_id
+    editingPresetId.value = p.id
+    status.notice = logoGone
+      ? `ใช้ "${p.name}" — ⚠ โลโก้ของงานนี้ถูกลบไปแล้ว เลือกโลโก้ใหม่ก่อน stamp`
+      : `ใช้ชุดตั้งค่า "${p.name}" แล้ว`
+    schedulePreview()
+  }
+
+  function newConfig() {
+    editingPresetId.value = null
+    status.notice = 'โหมดค่าตั้งใหม่ (บันทึกจะไม่ทับ preset ใด)'
+  }
+
+  async function deletePreset(id) {
+    await api.delete(`/api/presets/${id}`)
+    presets.value = presets.value.filter((p) => p.id !== id)
+    if (editingPresetId.value === id) editingPresetId.value = null
+  }
+
+  // ทุกการแก้ options/config = auto-save ลง localStorage (กัน reload แล้วหาย)
+  watch(options, _persistLocal, { deep: true })
+  watch([selectedLogoId, editingPresetId], _persistLocal)
+
   async function init() {
-    await Promise.all([loadLogos(), loadPdfs(), loadFonts()])
+    await Promise.all([loadLogos(), loadPdfs(), loadFonts(), loadPresets()])
+    _restoreLocal()
+    _ready = true   // เปิด persist ก็ต่อเมื่ออ่านค่าเก่าเสร็จแล้ว
     schedulePreview()
   }
 
   return {
-    logos, pdfs, fonts, selectedLogoId, selectedPdfIds, previewPdfId, previewPage, previewUrl, previewCopy,
+    logos, pdfs, fonts, presets, editingPresetId,
+    selectedLogoId, selectedPdfIds, previewPdfId, previewPage, previewUrl, previewCopy,
     status, options, selectedLogo, previewPdf, canPreview, targetsToStamp, totalOutputs,
     loadLogos, uploadLogo, deleteLogo, loadPdfs, uploadPdfs, removePdf, togglePdf,
     schedulePreview, refreshPreview, stampAll, init,
+    savePreset, applyPreset, deletePreset, newConfig,
   }
 })

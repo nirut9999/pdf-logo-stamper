@@ -85,6 +85,27 @@ class StampResultItem(BaseModel):
     total_pages: int
 
 
+class Preset(BaseModel):
+    """ชุดการตั้งค่าที่บันทึกไว้ — คืนให้ UI (options ตรงกับ body ที่ส่งกลับไปได้เลย)"""
+    id: str
+    name: str
+    logo_id: str | None
+    options: Options
+    created_at: str
+    updated_at: str
+
+
+class PresetSaveRequest(BaseModel):
+    """คำขอ save/update preset — ตั้งชื่อใหม่ทับของเดิมได้ถ้า given id
+
+    ตัวอย่าง: PresetSaveRequest(name='งานเช่าเครื่อง GPO', logo_id='cb84', options=Options(...))
+    """
+    name: str = Field(min_length=1, max_length=120)
+    logo_id: str | None = None
+    options: Options
+    id: str | None = Field(None, description="ถ้า given = เขียนทับ preset เดิม (update)")
+
+
 class HealthResponse(BaseModel):
     status: str
     version: str

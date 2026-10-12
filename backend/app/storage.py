@@ -68,6 +68,70 @@ def delete_logo(cid: str) -> bool:
     return True
 
 
+# ---------------- PRESET (ชุดการตั้งค่าที่บันทึกไว้) ----------------
+@dataclass
+class PresetMeta:
+    id: str
+    name: str
+    logo_id: str | None          # โลโก้ที่เลือกไว้ (อาจถูกลบไปแล้ว — apply แล้วเตือน)
+    options: dict                # body 'options' ทั้งก้อนจาก API
+    created_at: str
+    updated_at: str
+
+
+PRESET_DIR_NAME = "presets"
+
+
+def _preset_dir():
+    from . import config  # import ใน function — config resolve DATA_DIR จาก env ตอน import app ครั้งเดียว
+    return config.PRESET_DIR
+
+
+def save_preset(name: str, logo_id: str | None, options: dict, pid: str | None = None) -> PresetMeta:
+    """บันทึก/อัปเดต preset — คืน metadata (id ใหม่หรือเดิมถ้า given pid)
+
+    ตัวอย่าง: save_preset('งานสัญญาเช่า GPO', 'cb84', {'logo_width_mm': 28, 'copies': 50})
+    """
+    from datetime import datetime, timezone
+    d = _preset_dir()
+    d.mkdir(parents=True, exist_ok=True)
+    now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    cid = pid or _new_id()
+    old = get_preset(cid) if pid else None
+    meta = PresetMeta(cid, name.strip()[:120] or "preset", logo_id, options,
+                      old.created_at if old else now, now)
+    (d / f"{cid}.json").write_text(json.dumps(asdict(meta), ensure_ascii=False))
+    return meta
+
+
+def list_presets() -> list[PresetMeta]:
+    d = _preset_dir()
+    if not d.exists():
+        return []
+    out: list[PresetMeta] = []
+    for jp in sorted(d.glob("*.json"), key=lambda p: p.stat().st_mtime, reverse=True):
+        try:
+            out.append(PresetMeta(**json.loads(jp.read_text())))
+        except Exception:
+            continue
+    return out
+
+
+def get_preset(cid: str) -> PresetMeta | None:
+    jp = _preset_dir() / f"{cid}.json"
+    if not jp.exists():
+        return None
+    return PresetMeta(**json.loads(jp.read_text()))
+
+
+def delete_preset(cid: str) -> bool:
+    jp = _preset_dir() / f"{cid}.json"
+    if not jp.exists():
+        return False
+    jp.unlink()
+    return True
+
+
 # ---------------- PDF ----------------
 @dataclass
 class PdfMeta:

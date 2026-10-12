@@ -5,6 +5,7 @@ import LogoLibrary from './components/LogoLibrary.vue'
 import PdfList from './components/PdfList.vue'
 import Controls from './components/Controls.vue'
 import PreviewPane from './components/PreviewPane.vue'
+import PresetBar from './components/PresetBar.vue'
 
 const store = useStamper()
 onMounted(() => store.init())
@@ -41,9 +42,16 @@ onMounted(() => store.init())
         {{ store.status.error }}
       </div>
     </div>
+    <div v-else-if="store.status.notice" class="mx-auto mt-4 max-w-7xl px-5">
+      <div class="flex items-center justify-between gap-3 rounded-lg border border-brass-200 bg-brass-50 px-4 py-2 text-sm text-forest-800">
+        <span>{{ store.status.notice }}</span>
+        <button @click="store.status.notice = null" class="shrink-0 text-brass-600 hover:text-forest-900" title="ปิด">×</button>
+      </div>
+    </div>
 
     <main class="mx-auto grid max-w-7xl grid-cols-1 gap-6 px-5 py-6 lg:grid-cols-[minmax(320px,380px)_minmax(0,1fr)]">
       <div class="flex flex-col gap-5">
+        <PresetBar />
         <LogoLibrary />
         <PdfList />
         <Controls />

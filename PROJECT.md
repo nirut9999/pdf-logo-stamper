@@ -7,8 +7,8 @@ Web app สำหรับวาง watermark "โลโก้ + ข้อคว
 `pdf` (stamp/overlay patterns), `docker-compose`, `frontend-spa-modification` / `static-frontend-deploy` (Vue+nginx), `test-driven-development`, `verification-before-completion`
 
 ## 2. Snapshot
-- 🟢 v1.2.0 (2026-10-12) — สดที่ :8090, e2e กับไฟล์จริงของผู้ใช้ (โลโก้ อภ. + PDF ไทย 8 หน้า): preview↔output ตรงกัน, แถว [โลโก้→ข้อความ], Sarabun ไทย, copies ครบ
-- 46 backend tests green · frontend `vite build` clean
+- 🟢 v1.3.0 (2026-10-12) — สดที่ :8090; ใหม่: **presets** (บันทึกงานเดิม + auto-restore ค่าตั้งล่าสุด, validate ตอนเซฟด้วย engine stamp); e2e ผ่านกับไฟล์จริงผู้ใช้ (โลโก้ อภ. + PDF ไทย 8 หน้า, "ฉบับที่ 1..5" ×50 preset)
+- 54 backend tests green · frontend `vite build` clean
 
 ## 3. Changelog
 ดู CHANGELOG.md — v1.0.0 logo-only stamper · v1.1.0 +COPY No.N text, rotation, 200-copies mode, WYSIWYG preview ผ่าน API · **v1.2.0 โลโก้→หน้า(ซ้าย)ข้อความ แถวเดียวกัน, ขนาดข้อความอิสระ, font เลือกได้ (Sarabun = ไทย), แก้ชื่อไฟล์ไทย 500 (RFC 5987)**

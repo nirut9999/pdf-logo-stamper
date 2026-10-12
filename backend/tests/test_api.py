@@ -118,7 +118,7 @@ def test_options_color_validation_422(client, logo_id, pdf_id):
 
 
 def test_health(client):
-    assert client.get("/api/health").json() == {"status": "ok", "version": "1.0.0"}
+    assert client.get("/api/health").json() == {"status": "ok", "version": "1.3.0"}
 
 
 def test_upload_logo_metadata(client):

@@ -1,5 +1,13 @@
 # Changelog — PDF Logo Stamper
 
+## v1.3.0 (2026-10-12)
+- feat: **บันทึกการตั้งค่า (presets)** — เซฟชุดค่าตั้งทั้งก้อน (โลโก้+ขนาด/ระยะขอบ/ความจาง/เอียง/ข้อความ/font/copies/ขอบเขตหน้า) ตั้งชื่อได้ เก็บใน volume (ข้ามบราวเซอร์/restart อยู่)
+      `POST/GET/DELETE /api/presets` — validate ตอนเซฟด้วย StampOptions เดียวกับตอน stamp (config ใช้ไม่ได้ = 422 ตั้งแต่ต้น)
+- feat: UI "งานที่บันทึกไว้" เป็น chip คลิกใช้ทันที + บันทึกทับของเดิม (จำ created_at) + "+ ค่าตั้งใหม่" + ลบด้วย ×
+- feat: auto-restore ค่าตั้งล่าสุดผ่าน localStorage — reload แล้วงานเดิมกลับมาเอง
+- fix: deep-watch ของ config เขียน default ทับ LS ก่อน restore ตอน init → เพิ่ม gate `_ready` เปิดหลัง restore จบ (เจอจาก e2e จริงใน browser)
+- tests: 54 ผ่าน (+presets CRUD, apply→stamp ครบวงจร "ฉบับที่ 1..5")
+
 ## v1.2.0 (2026-10-12)
 - **layout ใหม่**: โลโก้ *หน้า* (ซ้าย) ตัวหนังสือ — เป็นแถวเดียวกัน, ข้อความถูกดันไปทางซ้าย, ขอบบนชิดกัน
 - feat: ขนาดข้อความปรับอิสระจากโลโก้ (slider 2–30mm)

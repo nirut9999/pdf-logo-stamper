@@ -8,6 +8,7 @@ from pathlib import Path
 DATA_DIR = Path(os.getenv("DATA_DIR", "./data")).resolve()
 LOGO_DIR = DATA_DIR / "logos"
 PDF_DIR = DATA_DIR / "pdfs"
+PRESET_DIR = DATA_DIR / "presets"
 
 # ขีดจำกัดความปลอดภัย
 MAX_PDF_BYTES = int(os.getenv("MAX_PDF_BYTES", 50 * 1024 * 1024))     # 50 MB/ไฟล์
@@ -21,5 +22,5 @@ ALLOWED_PDF_EXT = {".pdf"}
 
 def ensure_dirs() -> None:
     """สร้างโฟลเดอร์เก็บข้อมูลเมื่อเริ่ม app"""
-    LOGO_DIR.mkdir(parents=True, exist_ok=True)
-    PDF_DIR.mkdir(parents=True, exist_ok=True)
+    for d in (LOGO_DIR, PDF_DIR, PRESET_DIR):
+        d.mkdir(parents=True, exist_ok=True)

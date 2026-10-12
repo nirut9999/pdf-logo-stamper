@@ -7,6 +7,7 @@
 - 🔢 **สำเนา numbered** — ตั้ง copies เช่น **200** → ได้ 200 ไฟล์ `COPY No.1 … COPY No.200` (โหลดเป็น ZIP)
 - 🎛 **ปรับ layout**: ย่อ/ขยายโลโก้ (mm), **ขนาดข้อความอิสระ** (mm), **เลือก font** (Helvetica/Times/Courier + **Sarabun สำหรับไทย**), ระยะขอบบน/ขวา, ความจาง opacity, **เอียง ±180°**, สีข้อความ, `{n}` = เลขสำเนา, วางทุกหน้า/หน้าแรก/ช่วงหน้า
 - 👁 **Preview สดตรงกับไฟล์จริง** — ภาพในเว็บ rasterize จาก engine ตัวเดียวกับที่ผลิตไฟล์ (เห็นคือได้)
+- 💾 **บันทึกการตั้งค่าเป็น "งาน"** — เซฟทั้งชุด (โลโก้+layout+font+copies) ตั้งชื่อ คลิก chip = ใช้ทันที (เก็บฝั่งเซิร์ฟเวอร์), reload แล้วค่าตั้งล่าสุดกลับมาเอง
 
 ## รันด้วย Docker (แนะนำ)
 
@@ -46,6 +47,9 @@ curl -s -o p.png -H 'Content-Type: application/json' -d '{
 curl -s -o out.zip -H 'Content-Type: application/json' -d '{
   "pdf_ids":["'$PDF'"],"logo_id":"'$LOGO'",
   "options":{"include_text":true,"opacity":0.6,"rotation_degrees":0,"copies":200}}' $BASE/api/stamp
+# บันทึกชุดค่าตั้งไว้ใช้กับงานเดิม (ได้ id = update ทับ, ไม่มี id = create)
+curl -s -H 'Content-Type: application/json' -d '{
+  "name":"งานเช่าเครื่อง GPO","logo_id":"'$LOGO'","options":{"copies":50,"text_font":"Sarabun-Bold","text_template":"ฉบับที่ {n}"}}' $BASE/api/presets
 ```
 
 ## Limits
