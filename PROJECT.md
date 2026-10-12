@@ -7,11 +7,11 @@ Web app สำหรับวาง watermark "โลโก้ + ข้อคว
 `pdf` (stamp/overlay patterns), `docker-compose`, `frontend-spa-modification` / `static-frontend-deploy` (Vue+nginx), `test-driven-development`, `verification-before-completion`
 
 ## 2. Snapshot
-- v1.1.0 (2026-10-12) — สด, docker compose ขึ้นจริงที่ :8090, e2e ผ่าน: preview↔output ตรงกัน, zip 200 ไฟล์เลขครบ 1..200
-- 39 backend tests green · frontend `vite build` clean
+- 🟢 v1.2.0 (2026-10-12) — สดที่ :8090, e2e กับไฟล์จริงของผู้ใช้ (โลโก้ อภ. + PDF ไทย 8 หน้า): preview↔output ตรงกัน, แถว [โลโก้→ข้อความ], Sarabun ไทย, copies ครบ
+- 46 backend tests green · frontend `vite build` clean
 
 ## 3. Changelog
-ดู CHANGELOG.md — v1.0.0 logo-only stamper · v1.1.0 +COPY No.N text, rotation, 200-copies mode, WYSIWYG preview ผ่าน API
+ดู CHANGELOG.md — v1.0.0 logo-only stamper · v1.1.0 +COPY No.N text, rotation, 200-copies mode, WYSIWYG preview ผ่าน API · **v1.2.0 โลโก้→หน้า(ซ้าย)ข้อความ แถวเดียวกัน, ขนาดข้อความอิสระ, font เลือกได้ (Sarabun = ไทย), แก้ชื่อไฟล์ไทย 500 (RFC 5987)**
 
 ## 4. Plan & Roadmap
 - [ ] range สำเนาเริ่มต้น/จบ (เช่น No.101..300) ถ้าผู้ใช้ต้องการ numbering ต่อชุด
@@ -45,9 +45,13 @@ Python 3.12-slim · FastAPI · pypdf 6.10 · reportlab 5.0 · pypdfium2 · Pillo
 
 ## 11. Decisions
 - mm เป็นหน่วย input (งานพิมพ์ตรงกว่า px) · opacity default 0.6 (nature = watermark)
-- rotation pivot = center ของกลุ่ม ข้อความอยู่ใต้โลโก้เสมอ (แก้ bug clip ขอบบนของ anchor-pivot)
+- layout v1.2: [โลโก้ | gap | ข้อความ] แนวนอน ขอบบนชิด — ผู้ใช้สั่ง "logo ต้องอยู่หน้าตัวหนังสือ"
+- rotation pivot = center ของกลุ่ม (ไม่ใช่ anchor — เคยทำให้ข้อความหลุดขอบบน)
+- text size เป็นอิสระจาก logo width (slider ของใครของมัน); ข้อความไทยบังคับ font TTF (Sarabun) — validate ที่ StampOptions
 - backend preview (ไม่ใช่ pdf.js ฝั่ง client) เพื่อ WYSIWYG 100%
 - copies จำกัด 200/ไฟล์, ผลรวม ≤1000 ไฟล์ต่อ request
+- Sarabun TTF embed ใน repo (OFL license อนุญาต) — ไม่พึ่ง font บนเครื่อง
+- ⚠️ project CLAUDE.md เป็น protected file ของ harness — แก้ต้อง approvals จาก owner; notes ใหม่เก็บที่นี่/CHANGELOG ไปก่อน
 
 ## 12. Risks & Open Items
 - ไฟล์อัปโหลดค้างใน volume ถ้าไม่ลบผ่าน UI — ผู้ใช้จัดการเอง (on-prem trusted)

@@ -6,6 +6,7 @@ import api from '../api/api'
 export const useStamper = defineStore('stamper', () => {
   const logos = ref([])
   const pdfs = ref([])
+  const fonts = ref(['Helvetica-Bold'])
   const selectedLogoId = ref(null)
   const selectedPdfIds = ref([])   // ที่จะ stamp (ค่า default = ทุกไฟล์ที่อัปโหลด)
   const previewPdfId = ref(null)
@@ -23,10 +24,11 @@ export const useStamper = defineStore('stamper', () => {
     page_scope: 'all',      // 'all' | 'first' | 'custom'
     custom_pages: '',       // เช่น '1-3,5' เมื่อ page_scope='custom'
     rotation_degrees: 0,    // เอียง (บวก = ตามเข็ม)
-    include_text: true,     // ข้อความใต้โลโก้
+    include_text: true,     // ข้อความข้างโลโก้ (ขวา)
     text_template: 'COPY No.{n}',
     text_color: '#CC0000',
-    text_size_mm: null,     // null = auto
+    text_size_mm: 5,        // ขนาดข้อความอิสระจากโลโก้ (NULL = backend auto)
+    text_font: 'Helvetica-Bold',
     copies: 1,              // จำนวนสำเนา 1..200
   })
   const previewCopy = ref(1)  // เลขสำเนาที่แสดงใน preview
@@ -52,6 +54,7 @@ export const useStamper = defineStore('stamper', () => {
       text_template: options.text_template || 'COPY No.{n}',
       text_color: options.text_color || '#CC0000',
       text_size_mm: options.text_size_mm ? Number(options.text_size_mm) : null,
+      text_font: options.text_font || 'Helvetica-Bold',
       copies: Math.min(200, Math.max(1, Number(options.copies) || 1)),
     }
   }
@@ -146,8 +149,14 @@ export const useStamper = defineStore('stamper', () => {
         options: _payload(),
       }, { responseType: 'blob' })
       const cd = resp.headers['content-disposition'] || ''
-      const m = cd.match(/filename="?(.+?)"?$/i)
-      const filename = m ? m[1] : (resp.data.type === 'application/zip' ? 'stamped_logos.zip' : 'stamped.pdf')
+      let filename = null
+      const star = cd.match(/filename\*=UTF-8''([^;]+)/i)
+      if (star) { try { filename = decodeURIComponent(star[1]) } catch { /* fallback */ } }
+      if (!filename) {
+        const m = cd.match(/filename="?([^";]+)"?/i)
+        if (m) filename = m[1]
+      }
+      if (!filename) filename = (resp.data.type === 'application/zip' ? 'stamped_logos.zip' : 'stamped.pdf')
       const url = URL.createObjectURL(resp.data)
       const a = document.createElement('a')
       a.href = url
@@ -163,13 +172,23 @@ export const useStamper = defineStore('stamper', () => {
     }
   }
 
+  async function loadFonts() {
+    try {
+      const { data } = await api.get('/api/fonts')
+      if (Array.isArray(data) && data.length) {
+        fonts.value = data
+        if (!data.includes(options.text_font)) options.text_font = data.includes('Helvetica-Bold') ? 'Helvetica-Bold' : data[0]
+      }
+    } catch { /* ใช้ค่า default ต่อไป */ }
+  }
+
   async function init() {
-    await Promise.all([loadLogos(), loadPdfs()])
+    await Promise.all([loadLogos(), loadPdfs(), loadFonts()])
     schedulePreview()
   }
 
   return {
-    logos, pdfs, selectedLogoId, selectedPdfIds, previewPdfId, previewPage, previewUrl, previewCopy,
+    logos, pdfs, fonts, selectedLogoId, selectedPdfIds, previewPdfId, previewPage, previewUrl, previewCopy,
     status, options, selectedLogo, previewPdf, canPreview, targetsToStamp, totalOutputs,
     loadLogos, uploadLogo, deleteLogo, loadPdfs, uploadPdfs, removePdf, togglePdf,
     schedulePreview, refreshPreview, stampAll, init,

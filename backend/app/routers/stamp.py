@@ -8,13 +8,21 @@ import zipfile
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Response
+from urllib.parse import quote
 
 from .. import config, storage
+from ..fonts import ALLOWED_TEXT_FONTS
 from ..render import page_to_png
 from ..schemas import PreviewRequest, StampRequest
 from ..stamping import resolve_page_indices, stamp_pdf
 
 router = APIRouter(prefix="/api", tags=["stamp"])
+
+
+@router.get("/fonts")
+async def get_fonts() -> list[str]:
+    """รายชื่อ font ที่วาดข้อความได้ (Sarabun = รองรับภาษาไทย)"""
+    return list(ALLOWED_TEXT_FONTS)
 
 # ผลรวมไฟล์ส่งออกสูงสุด กัน zip ใหญ่เกินเหตุ (เช่น 10 pdf x 200 copies)
 MAX_OUTPUT_FILES = int(os.getenv("MAX_OUTPUT_FILES", "1000"))
@@ -27,10 +35,26 @@ def _logo_path(logo_id: str) -> Path:
     return Path(m.path)
 
 
+_UNSAFE_RE = re.compile(r'[\\/:*?"<>|\x00-\x1f]+')  # อักขระต้องห้ามของ path/zip (ไทย+วรรณยุกต์ผ่านได้)
+
+
 def _safe_stem(name: str) -> str:
-    """ชื่อไฟล์ปลอดภัยสำหรับ zip (ตัดอักขระแปลกๆ คงภาษาไทยได้)"""
+    """ชื่อไฟล์สำหรับ zip/download — ตัดเฉพาะอักขระต้องห้าม คงภาษาไทย+วรรณยุกต์ครบ
+
+    ตัวอย่าง: _safe_stem('รายงาน/เล่ม 2568.pdf') -> 'รายงาน_เล่ม 2568'
+    """
     stem = Path(name).stem
-    return re.sub(r"[^\w.\-]+", "_", stem)[:80] or "doc"
+    return _UNSAFE_RE.sub('_', stem)[:80].strip() or "doc"
+
+
+def _disposition(name: str) -> str:
+    """Content-Disposition แบบ RFC 5987 — รองรับชื่อไทย (header เป็น latin-1 ไม่ได้)
+
+    ตัวอย่าง: _disposition('วิธี COPY_No.1.pdf')
+      -> 'attachment; filename="____ COPY_No.1.pdf"; filename*=UTF-8\'\'%E0%B8%A2...COPY_No.1.pdf'
+    """
+    ascii_fallback = re.sub(r"[^A-Za-z0-9._\-]+", "_", name).strip("_") or "document.pdf"
+    return f'attachment; filename="{ascii_fallback}"; filename*=UTF-8\'\'{quote(name)}'
 
 
 @router.post("/preview")
@@ -92,7 +116,7 @@ async def stamp(req: StampRequest) -> Response:
     if len(files) == 1:
         name, data = files[0]
         return Response(content=data, media_type="application/pdf",
-                        headers={"Content-Disposition": f'attachment; filename="{name}"'})
+                        headers={"Content-Disposition": _disposition(name)})
 
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
@@ -107,4 +131,4 @@ async def stamp(req: StampRequest) -> Response:
             used.add(uniq)
             zf.writestr(uniq, data)
     return Response(content=buf.getvalue(), media_type="application/zip",
-                    headers={"Content-Disposition": 'attachment; filename="stamped_logos.zip"'})
+                    headers={"Content-Disposition": _disposition("stamped_logos.zip")})

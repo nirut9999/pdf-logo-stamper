@@ -193,6 +193,32 @@ def test_preview_missing_pdf_404(client, logo_id):
     assert r.status_code == 404
 
 
+def test_stamp_thai_filename_uses_rfc5987(client, logo_id):
+    """ชื่อไฟล์ไทยต้องไม่พัง header (latin-1) — response มี filename*=UTF-8''"""
+    thai_name = "วิธีการตั้งค่าเครื่องไทย.pdf"
+    r0 = client.post("/api/pdfs", files={"files": (thai_name, make_pdf_bytes(1), "application/pdf")})
+    pid = r0.json()[0]["id"]
+    opts = dict(OPTIONS, include_text=True)
+    r = client.post("/api/stamp", json={"pdf_ids": [pid], "logo_id": logo_id, "options": opts})
+    assert r.status_code == 200, r.text
+    cd = r.headers["content-disposition"]
+    assert "filename*=UTF-8''" in cd, cd
+    from urllib.parse import unquote
+    fn = unquote(cd.split("filename*=UTF-8''")[1])
+    assert fn.startswith("วิธีการตั้งค่าเครื่องไทย"), fn
+
+
+def test_stamp_thai_copies_zip(client, logo_id):
+    """copies + ชื่อไทย -> zip entries ชื่อไทยครบ"""
+    r0 = client.post("/api/pdfs", files={"files": ("สัญญาเช่า.pdf", make_pdf_bytes(1), "application/pdf")})
+    pid = r0.json()[0]["id"]
+    opts = dict(OPTIONS, include_text=True, copies=3)
+    r = client.post("/api/stamp", json={"pdf_ids": [pid], "logo_id": logo_id, "options": opts})
+    assert r.status_code == 200, r.text
+    names = zipfile.ZipFile(io.BytesIO(r.content)).namelist()
+    assert len(names) == 3 and any("สัญญาเช่า" in n for n in names), names
+
+
 def test_stamp_bad_page_scope_400(client, logo_id, pdf_id):
     opts = dict(OPTIONS, page_scope="99")  # นอกช่วงหน้า
     r = client.post("/api/stamp", json={"pdf_ids": [pdf_id], "logo_id": logo_id, "options": opts})

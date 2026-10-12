@@ -29,20 +29,27 @@ from pypdf import PdfReader, PdfWriter
 from reportlab.lib.colors import HexColor
 from reportlab.pdfgen import canvas
 
+from .fonts import ALLOWED_TEXT_FONTS, THAI_RE, font_supports_thai, text_width
+
 MM_TO_PT: float = 72.0 / 25.4
 HEX_COLOR_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
-TEXT_GAP_RATIO = 0.30      # ระยะห่างโลโก้→ข้อความ เทียบกับความสูงตัวอักษร
-CAP_HEIGHT_RATIO = 0.72    # ความสูงตัวพิมพ์ใหญ่เทียบ fontsize (Helvetica)
+TEXT_GAP_RATIO = 0.35      # ช่องว่างระหว่างโลโก้→ข้อความ เทียบกับความสูงตัวอักษร
+CAP_HEIGHT_RATIO = 0.72    # ความสูงตัวพิมพ์ใหญ่เทียบ fontsize
+DESCENDER_RATIO = 0.22     # ส่วนลงใต้ baseline
 DEFAULT_TEXT_SIZE_RATIO = 0.16  # auto text height = logo_width_mm * ratio
-TEXT_FONT = "Helvetica-Bold"
+TEXT_FONT_FALLBACK = "Helvetica-Bold"
 
 
 @dataclass(frozen=True)
 class StampOptions:
     """พารามิเตอร์ watermark (หน่วย mm/องศา เพื่อให้คุมงานพิมพ์ได้ตรง)
 
-    ตัวอย่าง: StampOptions(logo_width_mm=32, opacity=0.6, rotation_degrees=12,
-                        include_text=True, text_template="COPY No.{n}")
+    layout: [โลโก้][gap][ข้อความ] วางเป็นแถวแนวนอน ขนานขอบบนหน้า —
+    โลโก้อยู่ 'หน้า' (ซ้าย) ของข้อความเสมอ, กล่องทั้งหมดตรึงมุมขวาบนที่ anchor
+
+    ตัวอย่าง: StampOptions(logo_width_mm=32, text_font="Sarabun-Bold",
+                        text_size_mm=6, opacity=0.6, include_text=True,
+                        text_template="COPY No.{n}")
     """
 
     logo_width_mm: float = 30.0          # ความกว้างโลโก้บนหน้า (ย่อ/ขยาย)
@@ -50,11 +57,12 @@ class StampOptions:
     margin_right_mm: float = 8.0         # ระยะจากขอบขวา
     opacity: float = 1.0                 # 0.0–1.0 (1 = ทึบ, 0.5 = มองทะลุแบบ watermark)
     logo_height_mm: float | None = None  # ถ้าใส่ = ไม่คงสัดส่วน (บังคับสูง)
-    rotation_degrees: float = 0.0        # เอียงทั้งกลุ่ม รอบ anchor ขวาบน (บวก = ตามเข็ม)
-    include_text: bool = False           # วางข้อความใต้โลโก้ด้วยไหม
+    rotation_degrees: float = 0.0        # เอียงทั้งกลุ่ม รอบ center กล่อง (บวก = ตามเข็ม)
+    include_text: bool = False           # วางข้อความข้างโลโก้ด้วยไหม
     text_template: str = "COPY No.{n}"   # {n} = เลขสำเนา (copy_number)
     text_color: str = "#CC0000"          # สีข้อความ (default แดง)
     text_size_mm: float | None = None    # ความสูงข้อความ; None = auto = กว้าง*0.16
+    text_font: str = "Helvetica-Bold"    # ชื่อ font (ดู ALLOWED_TEXT_FONTS)
 
     def validate(self) -> None:
         if self.logo_width_mm <= 0:
@@ -65,6 +73,8 @@ class StampOptions:
             raise ValueError("opacity ต้องอยู่ในช่วง (0.0, 1.0]")
         if abs(self.rotation_degrees) > 180:
             raise ValueError("rotation_degrees ต้องอยู่ระหว่าง -180 ถึง 180")
+        if self.text_font not in ALLOWED_TEXT_FONTS:
+            raise ValueError(f"text_font ไม่รู้จัก: '{self.text_font}' (มี: {', '.join(ALLOWED_TEXT_FONTS)})")
         if self.include_text:
             if "{n}" not in self.text_template:
                 raise ValueError("text_template ต้องมี placeholder {n}")
@@ -74,6 +84,11 @@ class StampOptions:
                 raise ValueError(f"text_color ต้องเป็น #RRGGBB: {self.text_color}")
             if self.text_size_mm is not None and self.text_size_mm <= 0:
                 raise ValueError("text_size_mm ต้องมากกว่า 0")
+            if THAI_RE.search(self.text_template) and not font_supports_thai(self.text_font):
+                raise ValueError(
+                    f"ข้อความมีตัวอักษรไทย — ต้องใช้ font ไทย (Sarabun/Sarabun-Bold), "
+                    f"'{self.text_font}' ไม่มีตัวไทย"
+                )
 
 
 @dataclass
@@ -115,12 +130,11 @@ def _logo_size_pt(logo_path: Path, opts: StampOptions, page_w: float, page_h: fl
 def _text_metrics(opts: StampOptions, logo_w_mm: float, text: str) -> tuple[float, float]:
     """คืน (font size pt, ความกว้างข้อความ pt) — auto size = logo_width * ratio
 
-    ตัวอย่าง: text 'COPY No.1' ที่ 30mm logo -> fs=13.6pt, tw≈56pt (ประมาณ 0.55*fs/char)
+    ตัวอย่าง: text 'COPY No.3' font Helvetica-Bold ที่ logo 30mm -> fs=13.6pt, tw≈56.6pt
     """
     size_mm = opts.text_size_mm if opts.text_size_mm else max(2.2, logo_w_mm * DEFAULT_TEXT_SIZE_RATIO)
     fs = _mm(size_mm)
-    from reportlab.pdfbase import pdfmetrics
-    tw = pdfmetrics.stringWidth(text, TEXT_FONT, fs)
+    tw = text_width(text, opts.text_font, fs)
     return fs, tw
 
 
@@ -137,15 +151,18 @@ def _build_overlay_page(
     ax = page_w - _mm(opts.margin_right_mm)   # anchor ขวาบน (PDF origin ล่าง-ซ้าย)
     ay = page_h - _mm(opts.margin_top_mm)
 
-    # metrics ของข้อความ (ถ้ามี)
+    # metrics ของข้อความ (ถ้ามี) — ขนาดอิสระจากโลโก้ (text_size_mm หรือ auto)
     fs = tw = gap = cap = desc = 0.0
     if opts.include_text and text:
         fs, tw = _text_metrics(opts, opts.logo_width_mm, text)
-        gap = fs * TEXT_GAP_RATIO
+        gap = _mm(min(4.0, max(1.0, opts.logo_width_mm * 0.12)))  # ช่องห่าง 12% ของโลโก้ (1–4mm)
         cap = fs * CAP_HEIGHT_RATIO
-        desc = fs * 0.22  # ส่วนลงใต้ baseline (เช่น p, g)
-    bw = max(lw, tw) if opts.include_text else lw
-    bh = (lh + gap + cap + desc) if opts.include_text else lh
+        desc = fs * DESCENDER_RATIO
+
+    #กล่องกลุ่ม = [โลโก้][gap][ข้อความ] แนวตั้ง = max(โลโก้, ความสูงตัวอักษร)
+    th = cap + desc
+    bw = (lw + gap + tw) if (opts.include_text and text) else lw
+    bh = max(lh, th)
     hw, hh = bw / 2.0, bh / 2.0
 
     # pivot รอบ center ของกลุ่ม -> ครึ่งพื้นที่หลังจากเอียง (บวก=ตามเข็ม)
@@ -166,8 +183,9 @@ def _build_overlay_page(
     if opts.rotation_degrees:
         # reportlab rotate = ทวนเข็ม; ใช้ลบเพื่อให้ 'บวก = ตามเข็ม' ตามสัญชาตญาณผู้ใช้
         c.rotate(-opts.rotation_degrees)
-    # วาดในพิกัด local: ขอบขวาบนของกลุ่ม = (hw, hh) จะไปตกที่ anchor
-    c.drawImage(ImageReader_safe(logo_path), -lw / 2.0, hh - lh, width=lw, height=lh, mask="auto")
+    # local coords: ขวาบนของกลุ่ม (hw, hh) จะไปตกที่ anchor
+    # โลโก้ = ซีกซ้ายของแถว, แนวตั้งบน (top-aligned)
+    c.drawImage(ImageReader_safe(logo_path), -hw, hh - lh, width=lw, height=lh, mask="auto")
     if opts.include_text and text:
         c.setFillColor(HexColor(opts.text_color))
         # drawImage(mask=...) รีเซ็ต alpha ภายในของ reportlab เป็น 1 -> ต้องสั่งซ้ำก่อนวาดข้อความ
@@ -176,8 +194,10 @@ def _build_overlay_page(
             c.setStrokeAlpha(opts.opacity)
         except Exception:
             pass
-        c.setFont(TEXT_FONT, fs)
-        c.drawCentredString(0.0, -hh + desc, text)  # baseline: วัดจากขอบล่างของกลุ่ม
+        c.setFont(opts.text_font, fs)
+        # ข้อความอยู่ 'หลัง' โลโก้ทางขวา, ขอบบน (cap top) ชิดขอบบนโลโก้ = เป็นแถวเดียวกัน
+        y_base = hh - cap
+        c.drawString(-hw + lw + gap, y_base, text)
     c.restoreState()
     c.save()
     buf.seek(0)

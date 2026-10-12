@@ -1,9 +1,24 @@
 <script setup>
+import { computed } from 'vue'
 import { useStamper } from '../stores/stamper'
 const store = useStamper()
 const o = store.options
 
 function changed() { store.schedulePreview() }
+
+const THAI_RE = /[\u0E00-\u0E7F]/
+const needsThaiFont = computed(() =>
+  o.include_text && THAI_RE.test(o.text_template || '') && !/sarabun/i.test(o.text_font || ''))
+
+function fontLabel(f) {
+  const map = { 'Sarabun': 'Sarabun (ไทย/regular)', 'Sarabun-Bold': 'Sarabun Bold (ไทย)' }
+  return map[f] || f + ' (ลาตินเท่านั้น)'
+}
+function usePreset(tmpl, font) {
+  o.text_template = tmpl
+  if (font && store.fonts.includes(font)) o.text_font = font
+  changed()
+}
 </script>
 
 <template>
@@ -61,11 +76,11 @@ function changed() { store.schedulePreview() }
         <span class="ml-auto self-center text-[10px] text-forest-400">+ = เอนตามเข็ม</span>
       </div>
 
-      <!-- ข้อความ COPY No.N -->
+      <!-- ข้อความ COPY No.N (วางข้างโลโก้ ทางขวา) -->
       <div class="rounded-xl border border-forest-100 bg-ivory-50 p-3">
         <label class="flex cursor-pointer items-center gap-2 text-sm font-semibold text-forest-800">
           <input type="checkbox" class="h-4 w-4 accent-forest-700" v-model="o.include_text" @change="changed" />
-          วางข้อความใต้โลโก้ (default สีแดง)
+          วางข้อความข้างโลโก้ → (default สีแดง)
         </label>
         <div v-if="o.include_text" class="mt-3 space-y-3">
           <div>
@@ -78,20 +93,29 @@ function changed() { store.schedulePreview() }
                 class="h-9 w-10 shrink-0 cursor-pointer rounded border border-forest-200 bg-white p-0.5" title="สีข้อความ" />
             </div>
             <div class="mt-1.5 flex gap-1">
-              <button @click="o.text_template = 'COPY No.{n}'; changed()" class="rounded-md border border-forest-100 bg-white px-2 py-0.5 text-[11px] text-forest-600 hover:border-forest-300">COPY No.{n}</button>
-              <button @click="o.text_template = 'ฉบับที่ {n}'; changed()" class="rounded-md border border-forest-100 bg-white px-2 py-0.5 text-[11px] text-forest-600 hover:border-forest-300">ฉบับที่ {n}</button>
+              <button @click="usePreset('COPY No.{n}', 'Helvetica-Bold')" class="rounded-md border border-forest-100 bg-white px-2 py-0.5 text-[11px] text-forest-600 hover:border-forest-300">COPY No.{n}</button>
+              <button @click="usePreset('ฉบับที่ {n}', 'Sarabun-Bold')" class="rounded-md border border-forest-100 bg-white px-2 py-0.5 text-[11px] text-forest-600 hover:border-forest-300">ฉบับที่ {n} (Sarabun)</button>
             </div>
           </div>
-          <div class="flex items-center gap-2">
-            <input type="checkbox" class="h-4 w-4 accent-forest-700" :checked="o.text_size_mm != null"
-              @change="o.text_size_mm = $event.target.checked ? 5 : null; changed()" />
-            <span class="text-xs text-forest-600">กำหนดขนาดข้อความเอง</span>
-            <label v-if="o.text_size_mm != null" class="flex flex-1 items-center gap-2 text-xs text-forest-700">
-              <input class="range" type="range" min="2" max="30" step="0.5" v-model.number="o.text_size_mm" @input="changed" />
-              <span class="tabular-nums">{{ o.text_size_mm }} mm</span>
-            </label>
-            <span v-else class="ml-auto text-[11px] text-forest-400">auto ตามขนาดโลโก้</span>
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="label">Font ข้อความ</label>
+              <select v-model="o.text_font" @change="changed"
+                class="w-full rounded-lg border border-forest-200 bg-white px-2 py-1.5 text-sm focus:border-forest-500 focus:outline-none">
+                <option v-for="f in store.fonts" :key="f" :value="f">{{ fontLabel(f) }}</option>
+              </select>
+            </div>
+            <div>
+              <div class="flex items-baseline justify-between">
+                <label class="label !mb-0">ขนาดข้อความ</label>
+                <span class="text-xs font-semibold tabular-nums text-forest-800">{{ o.text_size_mm || 'auto' }} mm</span>
+              </div>
+              <input class="range mt-1.5" type="range" min="2" max="30" step="0.5" v-model.number="o.text_size_mm" @input="changed" />
+            </div>
           </div>
+          <p v-if="needsThaiFont" class="rounded-md bg-amber-50 px-2 py-1 text-[11px] text-amber-700">
+            ข้อความมีตัวไทย — เลือก font ไทย (Sarabun) ถึงจะไม่ว่าง
+          </p>
         </div>
       </div>
 

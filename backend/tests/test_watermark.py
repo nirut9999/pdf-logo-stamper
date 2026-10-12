@@ -57,32 +57,132 @@ def test_copy_number_text_appears_in_pdf(two_page_pdf, blue_logo_path):
         assert "COPYNo.3" in txt, txt
 
 
-def test_red_text_pixels_below_logo(two_page_pdf, blue_logo_path):
-    """โลโก้สีน้ำเงิน+ข้อความแดง: band ใต้โลโก้ต้องมีพิกเซลแดง, ในโลโก้ต้องไม่มี"""
+def test_red_text_pixels_right_of_logo(two_page_pdf, blue_logo_path):
+    """layout แนวนอน: กลุ่ม [โลโก้|gap|ข้อความ] ตรึงขวาบน — ข้อความแดงทางขวาของโลโก้"""
     opts = StampOptions(logo_width_mm=30, margin_top_mm=8, margin_right_mm=8, include_text=True)
     img = render(stamp_pdf(two_page_pdf, blue_logo_path, opts))
     W, H = img.size
-    # โลโก้: กว้าง 30mm สูง 12mm (fixture 200x80) -> ใต้โลโก้ = y > 8+12 = 20mm
-    logo_bottom_px = round((opts.margin_top_mm + 12) * PX_MM)
-    band = img.crop((W - round(50 * PX_MM), logo_bottom_px + 4, W - round(2 * PX_MM), logo_bottom_px + round(10 * PX_MM)))
+    bb = red_bbox(img)
+    assert bb, "ไม่พบข้อความแดงเลย"
+    left, top, right, bot = bb
+    anchor_x = W - round(8 * PX_MM)
+    # ink ของ glyph ตัวสุดท้ายมี right side bearing — ต้อง 'ใกล้' แต่ 'ไม่เกิน' anchor
+    assert right <= anchor_x + 2, f"ข้อความล้นเกิน anchor: {bb}"
+    assert anchor_x - right <= 14, f"ข้อความต้องชิด anchor (bearing ≤~2.4mm): {bb}"
+    # ข้อความต้องอยู่ครึ่งขวาของภาพเสมอ (โลโก้ 30mm+ข้อความ ≤60mm กลุ่มทั้งหมดทางขวา)
+    assert left > W // 2, f"ข้อความควรอยู่ฝั่งขวา: {bb} (W={W})"
+    # ฝั่งซ้ายของภาพ (ตำแหน่งเนื้อหาเดิม) ต้องไม่มี red ink
+    band = img.crop((0, 0, W // 2, H))
     px = band.load()
-    reds = sum(1 for y in range(band.size[1]) for x in range(band.size[0]) if is_red(px[x, y]))
-    assert reds > 100, f"พบพิกเซลแดงใน band ใต้โลโก้แค่ {reds}"
-    # ในกล่องโลโก้ (น้ำเงิน) ต้องไม่มีแดง
-    logo_box = img.crop((W - round(38 * PX_MM), round(8 * PX_MM), W - round(8 * PX_MM), logo_bottom_px))
-    lpx = logo_box.load()
-    red_in_logo = sum(1 for y in range(logo_box.size[1]) for x in range(logo_box.size[0]) if is_red(lpx[x, y]))
-    assert red_in_logo == 0
+    reds_left = sum(1 for y in range(band.size[1]) for x in range(band.size[0]) if is_red(px[x, y]))
+    assert reds_left == 0, "ฝั่งซ้ายต้องไม่มีข้อความ"
+
+
+def test_logo_left_of_text_order(two_page_pdf, blue_logo_path):
+    """ตรวจลำดับ: blue ink ต้องเริ่ม (leftmost) ก่อน red ink — 'logo หน้าตัวหนังสือ'"""
+    opts = StampOptions(logo_width_mm=30, include_text=True)
+    img = render(stamp_pdf(two_page_pdf, blue_logo_path, opts))
+    px = img.load()
+
+    def first_x(pred):
+        for x in range(img.size[0]):
+            for y in range(round(8 * PX_MM), round(24 * PX_MM)):
+                if pred(px[x, y]):
+                    return x
+        return img.size[0]
+
+    def is_blue(p):
+        r, g, b = p[:3]
+        return b > 140 and r < 110 and g < 150
+    x_blue = first_x(is_blue)
+    x_red = first_x(is_red)
+    assert x_blue < x_red, f"โลโก้ (x={x_blue}) ต้องอยู่ซ้ายของข้อความ (x={x_red})"
+
+
+def test_text_size_independent_of_logo(two_page_pdf, blue_logo_path):
+    """text ใหญ่ขึ้น -> ink กว้างขึ้น; ขวาบนกลุ่มยังตรึง anchor + ขอบบนโลโก้คงที่
+    (โลโก้ถูกดันซ้ายเมื่อกลุ่มกว้างขึ้น = พฤติกรรมถูกต้องของ anchor-right layout)"""
+    small = StampOptions(logo_width_mm=30, include_text=True, text_size_mm=4)
+    big = StampOptions(logo_width_mm=30, include_text=True, text_size_mm=9)
+    img_s = render(stamp_pdf(two_page_pdf, blue_logo_path, small))
+    img_b = render(stamp_pdf(two_page_pdf, blue_logo_path, big))
+
+    def red_width(img):
+        bb = red_bbox(img)
+        return (bb[2] - bb[0]) if bb else 0
+    assert red_width(img_b) > red_width(img_s) * 1.5, "ขนาดข้อความต้องปรับได้อิสระ"
+
+    W = img_s.size[0]
+    anchor_x = W - round(8 * PX_MM)
+    for img, tag in ((img_s, "small"), (img_b, "big")):
+        bb = red_bbox(img)
+        assert anchor_x - bb[2] <= 14, f"{tag}: ขวาข้อความต้องตรึงที่ anchor"
+
+    def blue_x_extent(img):
+        """ขอบซ้าย-ขวา ของ ink โลโก้ (น้ำเงิน) ในแถวบนขวา"""
+        px = img.load()
+        xs = []
+        for x in range(W - 1, 0, -1):
+            for y in range(round(6 * PX_MM), round(24 * PX_MM)):
+                r, g, b = px[x, y][:3]
+                if b > 140 and r < 110 and g < 150:
+                    xs.append(x)
+                    break
+        return (max(xs), min(xs)) if xs else (0, 0)
+    right_s, left_s = blue_x_extent(img_s)
+    right_b, left_b = blue_x_extent(img_b)
+    assert abs(right_s - right_b) > 20, "โลโก้ต้องถูกดันซ้ายเมื่อข้อความใหญ่ขึ้น (กลุ่มกว้างขึ้น)"
+    assert right_b < right_s
+    # ขอบบนโลโก้คงที่ (top-aligned ที่ margin_top) ทั้งสองกรณี
+    def blue_top(img):
+        px = img.load()
+        for y in range(round(12 * PX_MM)):
+            for x in range(img.size[0] // 2, img.size[0]):
+                r, g, b = px[x, y][:3]
+                if b > 140 and r < 110 and g < 150:
+                    return y
+        return 12 * PX_MM
+    assert round(6 * PX_MM) <= blue_top(img_s) <= round(10 * PX_MM)
+    assert round(6 * PX_MM) <= blue_top(img_b) <= round(10 * PX_MM)
+
+
+def test_sarabun_font_draws_thai(two_page_pdf, blue_logo_path):
+    """Sarabun-Bold ต้องวาด 'ฉบับที่ {n}' ภาษาไทยได้ (extract text + ink จริง)"""
+    opts = StampOptions(logo_width_mm=30, include_text=True, text_template="ฉบับที่ {n}",
+                        text_font="Sarabun-Bold")
+    out = stamp_pdf(two_page_pdf, blue_logo_path, opts, copy_number=5)
+    from pypdf import PdfReader
+    import io
+    t = (PdfReader(io.BytesIO(out)).pages[0].extract_text() or "")
+    assert "ฉบับที่ 5" in t, t
+    img = render(out)
+    assert red_bbox(img), "ต้องมี ink ข้อความไทย"
+
+
+def test_helvetica_rejects_thai_glyphs(two_page_pdf, blue_logo_path):
+    """Helvetica ไม่มีไทย -> 400 พร้อมแนะนำ Sarabun"""
+    opts = StampOptions(logo_width_mm=30, include_text=True, text_template="ฉบับที่ {n}",
+                        text_font="Helvetica-Bold")
+    import pytest
+    with pytest.raises(ValueError):
+        stamp_pdf(two_page_pdf, blue_logo_path, opts)
+
+
+def test_unknown_font_raises(two_page_pdf, blue_logo_path):
+    import pytest
+    with pytest.raises(ValueError):
+        stamp_pdf(two_page_pdf, blue_logo_path, StampOptions(include_text=True, text_font="Comic-Neue"))
 
 
 def test_custom_text_color(two_page_pdf, blue_logo_path):
     opts = StampOptions(logo_width_mm=40, include_text=True, text_color="#006600")
     img = render(stamp_pdf(two_page_pdf, blue_logo_path, opts))
     px = img.load()
-    W, H = img.size
+    W, _ = img.size
     greens = 0
-    for y in range(round(20 * PX_MM), round(30 * PX_MM)):
-        for x in range(round(160 * PX_MM), W - round(4 * PX_MM)):
+    # ข้อความอยู่แถวบนขวา — scan มุมขวาบนทั้งแถบ
+    for y in range(round(6 * PX_MM), round(24 * PX_MM)):
+        for x in range(round(150 * PX_MM), W - round(4 * PX_MM)):
             r, g, b = px[x, y][:3]
             if g > 90 and r < 90 and b < 90:
                 greens += 1
@@ -154,7 +254,8 @@ def test_text_opacity_transparent(two_page_pdf, blue_logo_path):
                              StampOptions(logo_width_mm=30, include_text=True, opacity=0.35)))
     def avg_green_of_ink(img):
         W, _ = img.size
-        band = img.crop((W - round(50 * PX_MM), round(22 * PX_MM), W - round(2 * PX_MM), round(28 * PX_MM)))
+        # band เฉพาะโซนข้อความ (ขวาของโลโก้): text auto ~20mm กว้าง ตรึงขวาที่ 8mm
+        band = img.crop((W - round(23 * PX_MM), round(7 * PX_MM), W - round(2 * PX_MM), round(22 * PX_MM)))
         px = band.load()
         vals = [px[x, y][1] for y in range(band.size[1]) for x in range(band.size[0])
                 if any(c < 245 for c in px[x, y])]  # ink เท่านั้น

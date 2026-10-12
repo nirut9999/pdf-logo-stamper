@@ -45,6 +45,7 @@ class Options(BaseModel):
     text_template: str = Field("COPY No.{n}", description="{n} = เลขสำเนา")
     text_color: str = Field("#CC0000", pattern=r"^#[0-9a-fA-F]{6}$")
     text_size_mm: float | None = Field(None, gt=0, le=100, description="None = auto ตามขนาดโลโก้")
+    text_font: str = Field("Helvetica-Bold", description="ชื่อ font — GET /api/fonts ดูตัวเลือก (Sarabun = ไทย)")
     copies: int = Field(1, ge=1, le=200, description="จำนวนสำเนา — N ชุด เลข 1..N")
 
     def to_stamp_options(self) -> StampOptions:
@@ -59,6 +60,7 @@ class Options(BaseModel):
             text_template=self.text_template,
             text_color=self.text_color,
             text_size_mm=self.text_size_mm,
+            text_font=self.text_font,
         )
 
 
