@@ -1,0 +1,33 @@
+# dev: hot-reload ทั้ง backend (uvicorn --reload) และ frontend (vite)
+services:
+  backend:
+    build: ./backend
+    image: pdf-logo-stamper-backend
+    command: python -m uvicorn app.main:app --host 0.0.0.0 --port 9010 --reload
+    environment:
+      DATA_DIR: /app/data
+      CORS_ORIGINS: "*"
+    volumes:
+      - ./backend/app:/app/app
+      - stamper_dev_data:/app/data
+    ports:
+      - "${BACKEND_PORT:-9011}:9010"
+    restart: unless-stopped
+
+  frontend:
+    image: node:20-alpine
+    working_dir: /app
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
+    environment:
+      VITE_PROXY_TARGET: http://backend:9010
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    ports:
+      - "${FRONTEND_DEV_PORT:-5173}:5173"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  stamper_dev_data:

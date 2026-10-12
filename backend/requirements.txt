@@ -1,0 +1,8 @@
+# pins ตรงกับเวอร์ชันที่ verify บนเครื่องจริง (Python 3.11) เพื่อไม่ให้ Docker ต่างจากที่ทดสอบ
+fastapi==0.136.3
+uvicorn[standard]==0.38.0
+python-multipart==0.0.20
+pypdf==6.10.2
+reportlab==5.0.1
+pillow==10.4.0
+pypdfium2==5.10.1
