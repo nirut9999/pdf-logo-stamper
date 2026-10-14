@@ -2,8 +2,8 @@
 
 ## 2026-10-14 (docs)
 - 🔒 สร้าง **private GitHub repo** `github.com/nirut9999/pdf-logo-stamper` — push ทั้งโปรเจกต์ (ไม่มี PII: uploads อยู่ในโลกของ docker volume เท่านั้น)
-- 📕 **คู่มือ PDF เขียนใหม่ด้วย WeasyPrint (Pango/HarfBuzz shaping)** — เวอร์ชัน reportlab เดิมวางวรรณยุกต์ไทยผิดตำแหน่งทั้งเล่ม (ไม่ทำ text shaping); สร้างใหม่ด้วย `docs/build_manual.py` (ต้องมี weasyprint)
-- 📕 คู่มือเปลี่ยนวิธีขนโค้ดเป็น `git clone` (Git for Windows + GCM login) แทน ZIP, ZIP เป็น fallback, หัวข้อ 8 ทำตารางอธิบายตัวแปร .env, เก็บ `docs/_manual.html` พ้น git
+- 📕 **คูมือ PDF เขียนใหม่ด้วย WeasyPrint (Pango/HarfBuzz shaping)** — เวอร์ชัน reportlab เดิมวางวรรณยุกต์ไทยผิดตำแหน่งทั้งเล่ม (ไม่ทำ text shaping); สร้างใหม่ด้วย `docs/build_manual.py` (ต้องมี weasyprint)
+- 📕 คูมือเปลี่ยนวิธีขนโค้ดเป็น `git clone` (Git for Windows + GCM login) แทน ZIP, ZIP เป็น fallback, หัวข้อ 8 ทำตารางอธิบายตัวแปร .env, เก็บ `docs/_manual.html` พ้น git
 
 ## v1.3.0 (2026-10-12)
 - feat: **บันทึกการตั้งค่า (presets)** — เซฟชุดค่าตั้งทั้งก้อน (โลโก้+ขนาด/ระยะขอบ/ความจาง/เอียง/ข้อความ/font/copies/ขอบเขตหน้า) ตั้งชื่อได้ เก็บใน volume (ข้ามบราวเซอร์/restart อยู่)

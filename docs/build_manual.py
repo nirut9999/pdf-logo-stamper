@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""build_manual.py — สร้าง PDF "คู่มือติดตั้ง Docker บน Windows" สำหรับ PDF Logo Stamper
+"""build_manual.py — สร้าง PDF "คูมือติดตั้ง Docker บน Windows" สำหรับ PDF Logo Stamper
 
 ใช้ WeasyPrint (Pango/HarfBuzz) เพื่อจัดวางสระ-วรรณยุกต์ไทยให้ถูกต้อง
 (เวอร์ชันเก่าใช้ reportlab ซึ่งวาดทีละ codepoint ไม่ทำ text shaping → วรรณยุกต์ไทยผิดตำแหน่ง)
 
-rungs: python3 docs/build_manual.py  ->  docs/คู่มือติดตั้ง-Docker-Windows.pdf
+rungs: python3 docs/build_manual.py  ->  docs/คูมือติดตั้ง-Docker-Windows.pdf
 ต้องติดตั้งก่อน: python3 -m pip install weasyprint
 """
 from __future__ import annotations
@@ -17,7 +17,7 @@ from weasyprint import HTML
 
 HERE = Path(__file__).resolve().parent
 FONTS = HERE.parent / "backend" / "app" / "fonts"
-OUT = HERE / "คู่มือติดตั้ง-Docker-Windows.pdf"
+OUT = HERE / "คูมือติดตั้ง-Docker-Windows.pdf"
 
 CSS = """
 @font-face { font-family: Sarabun; src: url('%(sar)s'); font-weight: normal }
@@ -25,7 +25,7 @@ CSS = """
 
 @page {
   size: A4; margin: 18mm 20mm 20mm 20mm;
-  @bottom-left  { content: "PDF Logo Stamper — คู่มือติดตั้ง Docker บน Windows";
+  @bottom-left  { content: "PDF Logo Stamper — คูมือติดตั้ง Docker บน Windows";
                   font: 8pt Sarabun; color: #8A8371 }
   @bottom-right { content: "หน้า " counter(page); font: 8pt Sarabun; color: #8A8371 }
 }
@@ -100,7 +100,7 @@ def build() -> None:
 <div class="cover">
   <div class="eyebrow">PDF LOGO STAMPER &nbsp;•&nbsp; เวอร์ชันแอป 1.3.0</div>
   <div class="rule"></div>
-  <h1 class="t">คู่มือติดตั้งบน Windows<br>ด้วย Docker</h1>
+  <h1 class="t">คูมือติดตั้งบน Windows<br>ด้วย Docker</h1>
   <p class="sub">สำหรับนำไปติดตั้งบนเครื่องอื่นเพื่อให้ทั้งทีมใช้งานร่วมกัน</p>
   <div class="meta">
     จัดทำเมื่อ {today} &nbsp;|&nbsp; ต้องใช้อย่างน้อย: Windows 10/11 (64-bit),
@@ -274,11 +274,11 @@ def build() -> None:
     "(กรณีใช้ทั้งทีม) เครื่องอื่นเปิดผ่าน <code>http://&lt;ip&gt;:8090</code> ได้",
     "จัดตารางสำรองข้อมูล (backup volume) เป็นประจำ",
 ])}
-{p('<span style="color:#5C564A;font-size:9pt">—— จบคู่มือ —— หากแก้ตามนี้แล้วยังไม่หาย '
+{p('<span style="color:#5C564A;font-size:9pt">—— จบคูมือ —— หากแก้ตามนี้แล้วยังไม่หาย '
    'กรุณาบันทึกภาพหน้าจอที่แสดง error พร้อมผลของคำสั่ง '
    '<code>docker compose logs backend</code> ส่งให้ทีมพัฒนาระบบ ——</span>')}
 """
-    html = (f"<html><head><meta charset='utf-8'>"
+    html = (f"<html><head><meta charset='utf-8'><title>PDF Logo Stamper — คูมือติดตั้ง Docker บน Windows</title>"
             f"<style>{CSS % {'sar': FONTS / 'Sarabun-Regular.ttf', 'sarb': FONTS / 'Sarabun-Bold.ttf'}}</style>"
             f"</head><body>{body}</body></html>")
     (HERE / "_manual.html").write_text(html, encoding="utf-8")

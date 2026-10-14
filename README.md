@@ -2,7 +2,7 @@
 
 วาง **watermark: โลโก้ (ซ้าย) + ข้อความ (ขวา) เช่น "COPY No.N" สีแดง** ทับมุมขวาบนของ **ทุกหน้า** ในไฟล์ PDF — ไม่แก้ไขเนื้อหาเดิม, มองทะลุได้, ปรับ layout ได้ครบ:
 
-> 📕 คู่มือติดตั้งบนเครื่องอื่น (Windows + Docker) เป็น PDF: [`docs/คู่มือติดตั้ง-Docker-Windows.pdf`](docs/) — สร้างใหม่ได้ด้วย `python3 docs/build_manual.py`
+> 📕 คูมือติดตั้งบนเครื่องอื่น (Windows + Docker) เป็น PDF: [`docs/คูมือติดตั้ง-Docker-Windows.pdf`](docs/) — สร้างใหม่ได้ด้วย `python3 docs/build_manual.py`
 
 - 🖼 **เลือกโลโก้จากเว็บ** — browse/drag รูป PNG (รองรับพื้นโปร่งใส)/JPG/WEBP, เก็บเป็นคลังเลือกสลับได้
 - 📄 **เลือก PDF จากเว็บ** — browse ได้หลายไฟล์พร้อมกัน
