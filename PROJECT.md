@@ -16,7 +16,7 @@ Web app สำหรับวาง watermark "โลโก้ + ข้อคว
 ## 4. Plan & Roadmap
 - [ ] range สำเนาเริ่มต้น/จบ (เช่น No.101..300) ถ้าผู้ใช้ต้องการ numbering ต่อชุด
 - [ ] ตำแหน่งมุมอื่น (ซ้ายบน/กลางบน) ถ้า demand มา — engine รองรับแล้ว ขาดแค่ UI anchor select
-- [ ] push ขึ้น remote (รอ owner decision — ยังไม่มี remote)
+- [x] push ขึ้น remote — **private** @ github.com/nirut9999/pdf-logo-stamper (2026-10-14)
 
 ## 5. Architecture
 ```
@@ -62,4 +62,4 @@ Python 3.12-slim · FastAPI · pypdf 6.10 · reportlab 5.0 · pypdfium2 · Pillo
 Owner/ผู้ใช้งาน: คุณนิรุตต์ · Dev/agent: Hermes
 
 ## 14. Links
-UI: http://localhost:8090 · API docs: http://127.0.0.1:9012/docs · Repo: local `~/Workspace/projects/pdf-logo-stamper`
+UI: http://localhost:8090 · API docs: http://127.0.0.1:9012/docs · Repo: github.com/nirut9999/pdf-logo-stamper (private)

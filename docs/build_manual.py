@@ -1,351 +1,288 @@
 #!/usr/bin/env python3
 """build_manual.py — สร้าง PDF "คู่มือติดตั้ง Docker บน Windows" สำหรับ PDF Logo Stamper
 
-ใช้ reportlab platypus + ฟอนต์ Sarabun (ไทย) ที่ฝังใน backend/app/fonts
+ใช้ WeasyPrint (Pango/HarfBuzz) เพื่อจัดวางสระ-วรรณยุกต์ไทยให้ถูกต้อง
+(เวอร์ชันเก่าใช้ reportlab ซึ่งวาดทีละ codepoint ไม่ทำ text shaping → วรรณยุกต์ไทยผิดตำแหน่ง)
+
 rungs: python3 docs/build_manual.py  ->  docs/คู่มือติดตั้ง-Docker-Windows.pdf
+ต้องติดตั้งก่อน: python3 -m pip install weasyprint
 """
 from __future__ import annotations
 
 from datetime import date
+from html import escape
 from pathlib import Path
 
-from reportlab.lib import colors
-from reportlab.lib.pagesizes import A4
-from reportlab.lib.styles import ParagraphStyle
-from reportlab.lib.units import mm
-from reportlab.pdfbase import pdfmetrics
-from reportlab.pdfbase.ttfonts import TTFont
-from reportlab.platypus import (
-    HRFlowable, Image, NextPageTemplate, PageBreak, Paragraph,
-    SimpleDocTemplate, Spacer, Table, TableStyle, XPreformatted,
-)
+from weasyprint import HTML
 
 HERE = Path(__file__).resolve().parent
 FONTS = HERE.parent / "backend" / "app" / "fonts"
 OUT = HERE / "คู่มือติดตั้ง-Docker-Windows.pdf"
 
-# --- palette (ตรงกับธีมแอป) ---
-FOREST = colors.HexColor("#1E3A2F")
-FOREST_LT = colors.HexColor("#2E5243")
-BRASS = colors.HexColor("#B08D3C")
-BRASS_LT = colors.HexColor("#E9DFC8")
-IVORY = colors.HexColor("#FAF6EC")
-CODE_BG = colors.HexColor("#F1EEE3")
-INK = colors.HexColor("#26221B")
-RED = colors.HexColor("#CC0000")
+CSS = """
+@font-face { font-family: Sarabun; src: url('%(sar)s'); font-weight: normal }
+@font-face { font-family: Sarabun; src: url('%(sarb)s'); font-weight: bold }
 
-pdfmetrics.registerFont(TTFont("Sarabun", str(FONTS / "Sarabun-Regular.ttf")))
-pdfmetrics.registerFont(TTFont("Sarabun-Bold", str(FONTS / "Sarabun-Bold.ttf")))
-pdfmetrics.registerFontFamily("Sarabun", normal="Sarabun", bold="Sarabun-Bold",
-                              italic="Sarabun", boldItalic="Sarabun-Bold")
-
-BODY = ParagraphStyle("body", fontName="Sarabun", fontSize=10.5, leading=16,
-                      textColor=INK, wordWrap="CJK", spaceAfter=5)
-BULLET = ParagraphStyle("bullet", parent=BODY, leftIndent=14, bulletIndent=2,
-                        spaceAfter=3)
-H1 = ParagraphStyle("h1", fontName="Sarabun-Bold", fontSize=16, leading=22,
-                    textColor=FOREST, spaceBefore=14, spaceAfter=6)
-H2 = ParagraphStyle("h2", fontName="Sarabun-Bold", fontSize=12.5, leading=18,
-                    textColor=FOREST_LT, spaceBefore=8, spaceAfter=4)
-TITLE = ParagraphStyle("title", fontName="Sarabun-Bold", fontSize=26, leading=34,
-                       textColor=colors.white)
-SUBTITLE = ParagraphStyle("subtitle", fontName="Sarabun", fontSize=13, leading=20,
-                          textColor=BRASS_LT)
-SMALL = ParagraphStyle("small", parent=BODY, fontSize=9, leading=13,
-                       textColor=colors.HexColor("#5C564A"))
-CAPTION = ParagraphStyle("caption", parent=SMALL, alignment=1)
-CODE = ParagraphStyle("code", fontName="Courier", fontSize=9.5, leading=13.5,
-                      textColor=colors.HexColor("#1D3226"), wordWrap="CJK",
-                      backColor=CODE_BG, borderColor=BRASS_LT, borderWidth=0.7,
-                      borderPadding=6, leftIndent=6, spaceAfter=8)
-TCELL = ParagraphStyle("tcell", parent=BODY, fontSize=9.5, leading=14, spaceAfter=0)
-TCELL_B = ParagraphStyle("tcellb", parent=TCELL, fontName="Sarabun-Bold",
-                         textColor=colors.white)
-
-
-def th(*cells: str) -> list:
-    """แถว header ตาราง (ขาวบนเขียว)"""
-    return [Paragraph(c, TCELL_B) if i == 0 else Paragraph(c, TCELL_B)
-            for i, c in enumerate(cells)]
-
-
-def row(*cells: str) -> list:
-    return [Paragraph(c, TCELL) for c in cells]
-
-
-def table(header: list, rows: list, widths: list) -> Table:
-    t = Table([header] + rows, colWidths=widths, repeatRows=1)
-    t.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, 0), FOREST),
-        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, IVORY]),
-        ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#C9BFA8")),
-        ("VALIGN", (0, 0), (-1, -1), "TOP"),
-        ("TOPPADDING", (0, 0), (-1, -1), 5),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
-        ("LEFTPADDING", (0, 0), (-1, -1), 7),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 7),
-    ]))
-    return t
+@page {
+  size: A4; margin: 18mm 20mm 20mm 20mm;
+  @bottom-left  { content: "PDF Logo Stamper — คู่มือติดตั้ง Docker บน Windows";
+                  font: 8pt Sarabun; color: #8A8371 }
+  @bottom-right { content: "หน้า " counter(page); font: 8pt Sarabun; color: #8A8371 }
+}
+@page cover {
+  margin: 0; background: #1E3A2F;
+  @bottom-left { content: ""; } @bottom-right { content: ""; }
+}
+html { font-family: Sarabun; font-size: 10.5pt; line-height: 1.6; color: #26221B }
+h1 { font-size: 15.5pt; color: #1E3A2F; border-bottom: 1.2pt solid #B08D3C;
+     padding-bottom: 2mm; margin: 8mm 0 3mm 0; break-after: avoid }
+h2 { font-size: 12pt; color: #2E5243; margin: 4mm 0 1.5mm 0; break-after: avoid }
+p  { margin: 0 0 2.2mm 0 }
+b  { color: #1E3A2F }
+ul { margin: 0 0 2.5mm 0; padding-left: 5mm }
+li { margin-bottom: 0.8mm }
+table { width: 100%%; border-collapse: collapse; font-size: 9.5pt;
+        margin: 1mm 0 3mm 0; break-inside: avoid }
+th { background: #1E3A2F; color: #FAF6EC; text-align: left; font-weight: bold;
+     padding: 1.6mm 2.4mm; border: 0.5pt solid #C9BFA8 }
+td { padding: 1.6mm 2.4mm; border: 0.5pt solid #C9BFA8; vertical-align: top }
+tr:nth-child(even) td { background: #FAF6EC }
+pre { font-family: Courier, monospace; font-size: 9pt; color: #1D3226;
+      background: #F1EEE3; border: 0.7pt solid #E9DFC8; padding: 2.2mm 3mm;
+      margin: 1mm 0 3mm 0; white-space: pre-wrap; break-inside: avoid }
+code { font-family: Courier, monospace; font-size: 9.2pt }
+.note { background: #FBF3DC; border-left: 3pt solid #B08D3C; padding: 2mm 3.5mm;
+        margin: 1mm 0 3mm 0; break-inside: avoid }
+.note b { color: #6B5518 }
+.figure { text-align: center; margin: 2mm 0 }
+.figure img { width: 140mm; border: 0.7pt solid #E9DFC8 }
+.caption { font-size: 8.5pt; color: #5C564A; text-align: center; margin-bottom: 2mm }
+.rule { border-bottom: 1pt solid #B08D3C; margin: 1mm 0 3mm 0 }
+.box { display: inline-block; width: 3.4mm; height: 3.4mm; border: 0.8pt solid #1E3A2F;
+       margin-right: 2mm; vertical-align: -0.3mm }
+.cover { page: cover; width: 210mm; height: 297mm; box-sizing: border-box;
+         padding: 30mm 22mm; color: #FFFFFF; break-after: always }
+.cover .eyebrow { color: #E9DFC8; font-size: 11pt; letter-spacing: 0.5pt }
+.cover .rule { border-bottom: 1.6pt solid #B08D3C; width: 60mm; margin: 3mm 0 8mm 0 }
+.cover h1.t { font-size: 27pt; color: #FFFFFF; border: none; margin: 0 0 2mm 0;
+              line-height: 1.3 }
+.cover .sub { color: #E9DFC8; font-size: 13pt; margin-top: 6mm }
+.cover .meta { color: #CFE0D4; font-size: 9.5pt; margin-top: 70mm; line-height: 2 }
+"""
 
 
-def code(text: str) -> XPreformatted:
-    return XPreformatted(text, CODE)
+def p(text: str) -> str:
+    return f"<p>{text}</p>"
 
 
-def note(text: str) -> Table:
-    """กล่องหมายเหตุเหลืองแกมทอง"""
-    p = Paragraph(f"<b>หมายเหตุ:</b> {text}", BODY)
-    t = Table([[p]], colWidths=[168 * mm])
-    t.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#FBF3DC")),
-        ("LINEBEFORE", (0, 0), (0, -1), 3, BRASS),
-        ("TOPPADDING", (0, 0), (-1, -1), 6), ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
-        ("LEFTPADDING", (0, 0), (-1, -1), 10),
-    ]))
-    return t
+def code(text: str) -> str:
+    return f"<pre>{escape(text)}</pre>"
 
 
-def bullets(items: list) -> list:
-    return [Paragraph(f"<bullet>•</bullet>{i}", BULLET) for i in items]
+def table(header: list[str], rows: list[list[str]]) -> str:
+    h = "".join(f"<th>{c}</th>" for c in header)
+    body = "".join("<tr>" + "".join(f"<td>{c}</td>" for c in r) + "</tr>" for r in rows)
+    return f"<table><tr>{h}</tr>{body}</table>"
 
 
-def cover(canvas, doc):  # หน้าปกเขียวทั้งหน้า
-    canvas.saveState()
-    canvas.setFillColor(FOREST)
-    canvas.rect(0, 0, A4[0], A4[1], fill=1, stroke=0)
-    canvas.setFillColor(BRASS)
-    canvas.rect(20 * mm, 262 * mm, 60 * mm, 1.2 * mm, fill=1, stroke=0)
-    canvas.setFont("Sarabun-Bold", 11)
-    canvas.setFillColor(BRASS_LT)
-    canvas.drawString(20 * mm, A4[1] - 24 * mm, "PDF LOGO STAMPER  •  v1.3.0")
-    canvas.restoreState()
+def note(text: str) -> str:
+    return f'<div class="note"><b>หมายเหตุ:</b> {text}</div>'
 
 
-def footer(canvas, doc):
-    canvas.saveState()
-    canvas.setStrokeColor(BRASS_LT)
-    canvas.setLineWidth(0.6)
-    canvas.line(20 * mm, 14 * mm, A4[0] - 20 * mm, 14 * mm)
-    canvas.setFont("Sarabun", 8)
-    canvas.setFillColor(colors.HexColor("#8A8371"))
-    canvas.drawString(20 * mm, 10 * mm, "PDF Logo Stamper — คู่มือติดตั้ง Docker บน Windows")
-    canvas.drawRightString(A4[0] - 20 * mm, 10 * mm, f"หน้า {doc.page}")
-    canvas.restoreState()
+def checks(items: list[str]) -> str:
+    lis = "".join(f"<li><span class='box'></span>{i}</li>" for i in items)
+    return f"<ul style='list-style:none;padding-left:0'>{lis}</ul>"
 
 
 def build() -> None:
-    doc = SimpleDocTemplate(str(OUT), pagesize=A4,
-                            leftMargin=20 * mm, rightMargin=20 * mm,
-                            topMargin=18 * mm, bottomMargin=20 * mm,
-                            title="PDF Logo Stamper — คู่มือติดตั้ง Docker บน Windows",
-                            author="Hermes")
-    W = 170 * mm
-    el: list = []
+    today = date.today().strftime("%d/%m/%Y")
+    body = f"""
+<div class="cover">
+  <div class="eyebrow">PDF LOGO STAMPER &nbsp;•&nbsp; เวอร์ชันแอป 1.3.0</div>
+  <div class="rule"></div>
+  <h1 class="t">คู่มือติดตั้งบน Windows<br>ด้วย Docker</h1>
+  <p class="sub">สำหรับนำไปติดตั้งบนเครื่องอื่นเพื่อให้ทั้งทีมใช้งานร่วมกัน</p>
+  <div class="meta">
+    จัดทำเมื่อ {today} &nbsp;|&nbsp; ต้องใช้อย่างน้อย: Windows 10/11 (64-bit),
+    Docker Desktop แบบ WSL2, RAM 4 GB, พื้นที่ดิสก์ว่าง 5 GB<br>
+    ระบบจัดเก็บข้อมูลไว้ในเครื่องเท่านั้น ไม่ส่งออกนอกเครือข่าย
+  </div>
+</div>
 
-    # ---------- ปก ----------
-    el.append(Spacer(1, 60 * mm))
-    el.append(Paragraph("คู่มือติดตั้ง", TITLE))
-    el.append(Paragraph("PDF Logo Stamper บน Windows ด้วย Docker", TITLE))
-    el.append(Spacer(1, 8 * mm))
-    el.append(Paragraph("สำหรับติดตั้งบนเครื่อง Windows อื่นเพื่อให้ทั้งทีมใช้ร่วมกัน",
-                        SUBTITLE))
-    el.append(Spacer(1, 40 * mm))
-    el.append(Paragraph(f"เวอร์ชันแอป 1.3.0 &nbsp;|&nbsp; จัดทำวันที่ "
-                        f"{date.today().strftime('%d/%m/%Y')} &nbsp;|&nbsp; "
-                        f"ต้องใช้อย่างน้อย: Windows 10/11 64-bit + Docker Desktop (WSL2)",
-                        ParagraphStyle("cvsmall", parent=SUBTITLE, fontSize=10)))
-    el.append(PageBreak())
+<h1>1. ระบบทำงานอย่างไร</h1>
+{p('PDF Logo Stamper คือเว็บแอปสำหรับ <b>วาง watermark (โลโก้ + ข้อความ เช่น "COPY No.1") '
+    'ที่มุมขวาบนของ PDF ทุกหน้า</b> โดยไม่แก้ไขเนื้อหาต้นฉบับ รองรับหลายไฟล์พร้อมกัน '
+    'สร้างสำเนาได้สูงสุด 200 ชุดต่อรอบ และบันทึกชุดการตั้งค่าไว้ใช้ซ้ำกับงานเดิมได้')}
+{p("ระบบรันด้วย Docker Compose ประกอบด้วย 2 คอนเทนเนอร์:")}
+{table(["บริการ", "หน้าที่", "พอร์ต"], [
+    ["frontend", "หน้าจอเว็บสำหรับใช้งาน (nginx) — เปิดใช้งานจริงที่พอร์ตนี้", "8090"],
+    ["backend", "ระบบคำนวณและวาง watermark (FastAPI) — ทำงานภายในเท่านั้น",
+     "9010 (ภายใน)<br>9012 (เฉพาะเครื่องที่ติดตั้ง)"],
+    ["stamper_data<br>(volume)",
+     "เก็บโลโก้ ไฟล์ PDF และงานที่บันทึกไว้ — ข้อมูลอยู่ต่อเมื่อรีสตาร์ทหรืออัปเดตเวอร์ชัน", "—"],
+])}
+{p("ตัวอย่างผลลัพธ์จริง — โลโก้และข้อความสีแดงวางทับมุมขวาบน โปร่งจางจนอ่านเนื้อหาผ่านได้ "
+    "(ปรับสี ขนาด ความจาง และความเอียงได้ที่หน้าจอ):")}
+<div class="rule"></div>
+<div class="figure"><img src="{HERE / 'images' / 'sample_watermark.png'}"></div>
+<p class="caption">ตัวอย่าง watermark มุมขวาบนของเอกสาร สร้างด้วยระบบเดียวกับที่ใช้จริง</p>
+<div class="rule"></div>
 
-    # ---------- 1. ภาพรวม ----------
-    el.append(Paragraph("1. ภาพรวมระบบ", H1))
-    el.append(Paragraph(
-        "PDF Logo Stamper คือเว็บแอปสำหรับ <b>วาง watermark (โลโก้ + ข้อความ เช่น "
-        "COPY No.1) ทับมุมขวาบนของทุกหน้า PDF</b> โดยไม่แก้ไขเนื้อหาต้นฉบับ "
-        "รองรับหลายไฟล์พร้อมกัน สร้างได้สูงสุด 200 สำเนาต่อรอบ "
-        "บันทึกการตั้งค่าเป็น “งาน” ไว้ใช้ซ้ำกับงานเดิมได้ "
-        "ทำงานเป็น 2 container ผ่าน Docker Compose:", BODY))
-    el.append(Spacer(1, 2))
-    el.append(table(
-        th("บริการ", "หน้าที่", "พอร์ต"),
-        [row("frontend", "หน้าจอเว็บ (nginx) — เปิดใช้จริงที่พอร์ตนี้", "8090"),
-         row("backend", " engine วาง watermark (FastAPI) — เข้าถึงผ่านหน้าเว็บเท่านั้น",
-            "9010 (ภายใน) / 9012 (เฉพาะเครื่องตัวเอง)"),
-         row("volume: stamper_data", "เก็บโลโก้ ไฟล์ PDF และงานที่บันทึกไว้ — "
-            "อยู่ข้ามการ restart/upgrade", "—")],
-        [42 * mm, 92 * mm, 36 * mm]))
-    el.append(Spacer(1, 6))
-    el.append(Paragraph(
-        "ผลลัพธ์ตัวอย่าง — โลโก้ + ข้อความสีแดง โปร่งจาง มองทะลุเนื้อหาได้ "
-        "(ปรับสี/ขนาด/ความจาง/เอียงได้ในหน้าเว็บ):", BODY))
-    img = Image(str(HERE / "images" / "sample_watermark.png"))
-    w = 140 * mm
-    img.drawWidth, img.drawHeight = w, w * img.imageHeight / img.imageWidth
-    img.hAlign = "CENTER"
-    el.append(HRFlowable(width=W, color=BRASS, thickness=1, spaceBefore=2, spaceAfter=6))
-    el.append(img)
-    el.append(Paragraph("ตัวอย่าง watermark จริงมุมขวาบนของเอกสาร (สร้างจาก engine "
-                        "เดียวกับที่ใช้งาน)", CAPTION))
-    el.append(HRFlowable(width=W, color=BRASS, thickness=1, spaceBefore=6, spaceAfter=2))
+<h1>2. เตรียมเครื่อง Windows</h1>
+<h2>2.1 สิ่งที่เครื่องต้องมี</h2>
+{table(["หัวข้อ", "ขั้นต่ำ", "แนะนำ"], [
+    ["ระบบปฏิบัติการ", "Windows 10 64-bit (รุ่น 21H2 ขึ้นไป) หรือ Windows 11", "Windows 11"],
+    ["หน่วยความจำ (RAM)", "4 GB", "8 GB"],
+    ["พื้นที่ดิสก์ว่าง", "5 GB สำหรับ Docker Desktop และอิมเมจของแอป", "SSD, 10 GB"],
+    ["อื่น ๆ", "เปิดใช้งาน virtualization ใน BIOS (VT-x หรือ AMD-V)", "—"],
+])}
+<h2>2.2 ติดตั้ง WSL2 (ถ้ายังไม่มี)</h2>
+{p("เปิด <b>PowerShell (Administrator)</b> แล้วรันคำสั่งด้านล่าง "
+   "(เครื่องอาจรีสตาร์ทเองหรือสั่งให้รีสตาร์ท แล้วกลับมาเปิด PowerShell ใหม่):")}
+{code("wsl --install\n# reboot when prompted, then reopen PowerShell\nwsl --version")}
+<h2>2.3 ติดตั้ง Docker Desktop</h2>
+<ul>
+  <li>ดาวน์โหลดตัวติดตั้งจาก <b>docker.com/products/docker-desktop</b> แล้วติดตั้งตามขั้นตอน</li>
+  <li>เปิด Docker Desktop และรอจนมุมล่างขวาของหน้าจอแสดง <b>“Engine running”</b>
+      (ครั้งแรกอาจขอให้ Sign in — กดข้ามได้)</li>
+  <li>ตรวจความพร้อมด้วย PowerShell:</li>
+</ul>
+{code("docker --version\ndocker compose version\ndocker run --rm hello-world")}
+{p("ถ้าเห็นข้อความ “Hello from Docker!” แสดงว่าเครื่องพร้อมติดตั้งแอปแล้ว "
+   "หากขึ้น error เรื่อง virtualization หรือ WSL ให้กลับไปทำข้อ 2.2")}
 
-    # ---------- 2. เตรียมเครื่อง ----------
-    el.append(Paragraph("2. เตรียมเครื่อง Windows", H1))
-    el.append(Paragraph("2.1 สเปกขั้นต่ำ", H2))
-    el.append(table(
-        th("หัวข้อ", "ขั้นต่ำ", "แนะนำ"),
-        [row("ระบบปฏิบัติการ", "Windows 10 64-bit (21H2+) หรือ Windows 11", "Windows 11"),
-         row("หน่วยความจำ", "4 GB", "8 GB"),
-         row("ดิสก์ว่าง", "5 GB (Docker Desktop + image)", "SSD, 10 GB"),
-         row("อื่น ๆ", "เปิด virtualization ใน BIOS (VT-x / AMD-V)", "—")],
-        [34 * mm, 70 * mm, 66 * mm]))
-    el.append(Paragraph("2.2 ติดตั้ง WSL2 (ถ้ายังไม่มี)", H2))
-    el.append(Paragraph("เปิด <b>PowerShell (Administrator)</b> แล้วรัน:", BODY))
-    el.append(code("wsl --install\n# reboot when prompted, then reopen PowerShell\nwsl --version"))
-    el.append(Paragraph("2.3 ติดตั้ง Docker Desktop", H2))
-    el.append(Paragraph("1) ดาวน์โหลดจาก <font color='#26418E'>https://www.docker.com/"
-                        "products/docker-desktop/</font> แล้วรันตัวติดตั้ง", BODY))
-    el.append(Paragraph("2) เปิด Docker Desktop รอจนมุมล่างขวาขึ้น <b>“Engine running”</b> "
-                        "(ครั้งแรกอาจให้ Sign in — ข้ามได้)", BODY))
-    el.append(Paragraph("3) ตรวจว่าพร้อมใช้ โดยรันใน PowerShell:", BODY))
-    el.append(code("docker --version\ndocker compose version\ndocker run --rm hello-world"))
-    el.append(Paragraph("ถ้า hello-world ขึ้น “Hello from Docker!” = พร้อมติดตั้งแอป "
-                        "ถ้า error เรื่อง virtualization/WSL กลับข้อ 2.2", BODY))
+<h1>3. ดึงโค้ดจาก GitHub (private repository)</h1>
+{p("โค้ดเก็บไว้ที่ <b>github.com/nirut9999/pdf-logo-stamper</b> (private) — "
+   "ผู้ที่จะติดตั้งต้องมีสิทธิ์อ่าน repo; เจ้าของ repo เพิ่ม collaborator "
+   "ให้จากหน้า Settings → Collaborators ของโปรเจกต์")}
+{p("บนเครื่อง Windows: ติดตั้ง <b>Git for Windows</b> จาก <b>git-scm.com</b> ก่อน "
+   "(มาพร้อม Git Credential Manager) แล้วเปิด PowerShell:")}
+{code("cd C:\\\ngit clone https://github.com/nirut9999/pdf-logo-stamper.git\ncd pdf-logo-stamper")}
+{p("ครั้งแรกที่ clone จะมีหน้าต่างเบราว์เซอร์เด้งให้ล็อกอินบัญชี GitHub — "
+   "ยืนยันเสร็จแล้วโหลดทั้งโปรเจกต์ลงมาเองอัตโนมัติ "
+   "ครั้งถัดไปเมื่อต้องการรับเวอร์ชันใหม่ ก็เพียงรัน <code>git pull</code> ในโฟลเดอร์เดิม")}
+{note("กรณีเครื่องไม่มี Git หรือเน็ตถูกบล็อก ใช้วิธี ZIP จากเครื่องต้นทางแทน "
+      "(<code>zip -r pdf-logo-stamper.zip pdf-logo-stamper -x \"*/node_modules/*\" "
+      "\"*/.git/*\" \"*/__pycache__/*\" \"*/dist/*\"</code> แล้ว Extract All บน Windows) — "
+      "ข้อมูลโลโก้/เอกสารผู้ใช้ไม่มากับทั้ง ZIP และ repo (เก็บใน volume ของเครื่องเดิม) "
+      "ถ้าต้องการย้ายงานที่บันทึกไว้ไปด้วยให้ทำ backup ตามข้อ 7")}
 
-    # ---------- 3. copy โปรเจค ----------
-    el.append(Paragraph("3. นำไฟล์โปรเจคมาไว้บนเครื่อง", H1))
-    el.append(Paragraph("ยังไม่มี git remote — ส่งไฟล์กันด้วย ZIP จากเครื่องต้นทาง "
-                        "(macOS/Linux รันใน Terminal):", BODY))
-    el.append(code("cd ~/Workspace/projects\nzip -r pdf-logo-stamper.zip pdf-logo-stamper \\\n"
-        "    -x \"*/node_modules/*\" \"*/.git/*\" \"*/__pycache__/*\" \"*/dist/*\"\n"
-        "# -> pdf-logo-stamper.zip  (copy to Windows: USB / shared drive)"))
-    el.append(Paragraph("ฝั่ง Windows: คลิกขวา zip → <b>Extract All…</b> เช่นได้เป็น "
-                        "<font face='Courier'>C:\\pdf-logo-stamper</font> "
-                        "โฟลเดอร์นี้จะมี docker-compose.yml, backend/, frontend/ "
-                        "— ข้อมูลผู้ใช้งานไม่ได้มากับ zip (เก็บใน volume ของเครื่องเดิม "
-                        "ถ้าต้องการย้ายงานที่บันทึกไว้ด้วย ดูข้อ 7)", BODY))
-    el.append(note("เมื่อ repo ขึ้น GitHub แล้ว วิธีที่ถูกต้องคือ "
-                   "<font face='Courier'>git clone &lt;url&gt;</font> แทนการ zip"))
+<h1>4. ติดตั้งและเปิดใช้งานครั้งแรก</h1>
+{p("เปิด PowerShell แล้วรัน (ปรับ path ตามที่แตกไฟล์ไว้):")}
+{code("cd C:\\pdf-logo-stamper\ndocker compose up -d --build")}
+{p("การ build ครั้งแรกต้องดาวน์โหลดฐาน Python/Node และไลบรารี ใช้เวลาประมาณ 3–10 นาที "
+   "ตามความเร็วอินเทอร์เน็ต โดยมี log แสดงความคืบหน้าตลอด")}
+{p("เมื่อเสร็จให้ตรวจสถานะ — ทั้งสองตัวต้องเป็น Up (healthy):")}
+{code("docker compose ps")}
+{p("จากนั้นเปิดเบราว์เซอร์ที่ <b>http://localhost:8090</b> — "
+   "ถ้าเห็นหน้าจอ PDF Logo Stamper แสดงว่าติดตั้งสำเร็จ ✓ "
+   "ทดลองใช้งานจริง: อัปโหลดโลโก้ PNG → อัปโหลดไฟล์ PDF → ปรับค่า → "
+   "ดูตัวอย่าง preview → กด Stamp & ดาวน์โหลด")}
 
-    # ---------- 4. ติดตั้ง+เริ่ม ----------
-    el.append(Paragraph("4. ติดตั้งและเปิดใช้งานครั้งแรก", H1))
-    el.append(Paragraph("ใน PowerShell:", BODY))
-    el.append(code("cd C:\\pdf-logo-stamper\ndocker compose up -d --build"))
-    el.append(Paragraph("ครั้งแรก build image (ดาวน์โหลด Python/Node + ติดตั้ง lib) "
-                        "ใช้เวลาประมาณ 3–10 นาทีแล้วแต่เน็ต — ระหว่างรอจอจะวิ่ง "
-                        "เสร็จแล้วตรวจว่าทั้ง 2 ตัว <b>healthy</b>:", BODY))
-    el.append(code("docker compose ps\n"
-        "# STATUS must be Up (healthy) for BOTH backend and frontend"))
-    el.append(Paragraph("เปิดเบราว์เซอร์ที่:", BODY))
-    el.append(code("http://localhost:8090"))
-    el.append(Paragraph("เห็นหน้าเว็บธีมเขียว “PDF Logo Stamper” = สำเร็จ ✓ "
-                        "ทดสอบเต็มระบบ: อัปโหลดโลโก้ PNG → อัปโหลด PDF → ตั้งค่า → "
-                        "ดู preview → กด Stamp → ดาวน์โหลดผล", BODY))
+<h1>5. ให้เครื่องอื่นในวง LAN ใช้ร่วมกัน</h1>
+{p("ดู IP ของเครื่องที่ติดตั้ง (PowerShell):")}
+{code("ipconfig | findstr IPv4\n# e.g. 192.168.1.50")}
+{p("เปิด firewall ของ Windows สำหรับพอร์ต 8090 (PowerShell as Administrator):")}
+{code('New-NetFirewallRule -DisplayName "PDF Logo Stamper"\n'
+      '    -Direction Inbound -Protocol TCP -LocalPort 8090 -Action Allow')}
+{p("เครื่องอื่นในวง LAN เดียวกันเปิด <code>http://192.168.1.50:8090</code> ได้ทันที")}
+{note("แอปนี้ยังไม่มีระบบล็อกอิน — ควรเปิดให้เฉพาะวง LAN ที่ไว้ใจได้ "
+      "หรือปรับ firewall ให้อนุญาตเฉพาะวง subnet ที่ใช้งานจริง")}
 
-    # ---------- 5. ให้ทีมใช้ ----------
-    el.append(Paragraph("5. เปิดให้เครื่องอื่นในวง LAN เข้าใช้", H1))
-    el.append(Paragraph("ตรวจ IP ของเครื่องที่ติดตั้ง (PowerShell):", BODY))
-    el.append(code("ipconfig | findstr IPv4\n# e.g. 192.168.1.50"))
-    el.append(Paragraph("เปิดไฟร์วอลล์ Windows สำหรับพอร์ต 8090 "
-                        "(PowerShell as Administrator):", BODY))
-    el.append(code('New-NetFirewallRule -DisplayName "PDF Logo Stamper"\n'
-        '    -Direction Inbound -Protocol TCP -LocalPort 8090 -Action Allow'))
-    el.append(Paragraph("เครื่องอื่นในวง LAN เดียวกันเปิด: "
-                        "<font face='Courier'>http://192.168.1.50:8090</font>", BODY))
-    el.append(note("เว็บนี้ยังไม่มีระบบ login — ให้เปิดเฉพาะวง LAN ที่ไว้ใจได้ "
-                   "หรือตั้ง Windows Firewall ให้อนุญาตเฉพาะกั้น subnet ที่ใช้จริง"))
+<h1>6. การหยุดและเริ่มระบบ</h1>
+{table(["ต้องการ", "คำสั่ง (รันในโฟลเดอร์โปรเจกต์)"], [
+    ["เปิดใช้งานอีกครั้งหลังรีสตาร์ทเครื่อง", "docker compose start"],
+    ["หยุดชั่วคราว (ข้อมูลอยู่ครบ)", "docker compose stop"],
+    ["อัปเดตเป็นเวอร์ชันใหม่ (build ซ้ำ)", "docker compose up -d --build"],
+    ["รีสตาร์ทเฉพาะฝั่ง backend", "docker compose restart backend"],
+    ["ลบระบบและข้อมูลทั้งหมด", "docker compose down -v &nbsp; "
+     "<b style='color:#CC0000'>⚠ ข้อมูลโลโก้ งานที่บันทึกไว้ และไฟล์ต่าง ๆ จะถูกลบถาวร</b>"],
+])}
+{p("ตั้งค่าให้ Docker Desktop เริ่มเองเมื่อลงชื่อเข้าเครื่อง: "
+   "Docker Desktop → Settings → General → <b>“Start Docker Desktop when you sign in</b>” "
+   "จากนั้นเพิ่มงานใน <b>Task Scheduler</b> ให้รัน <code>docker compose start</code> "
+   "(Action: Start a program, Start in: ระบุโฟลเดอร์โปรเจกต์) "
+   "เพื่อให้แอปพร้อมใช้ทุกครั้งหลังเปิดเครื่อง")}
 
-    # ---------- 6. ชีวิตประจำวัน ----------
-    el.append(Paragraph("6. สั่งเปิด/ปิด/รีสตาร์ท", H1))
-    el.append(table(
-        th("ต้องการ", "คำสั่ง (ในโฟลเดอร์โปรเจค)"),
-        [row("เปิดใช้ (หลังบูตเครื่องใหม่)", "docker compose start"),
-         row("ปิดชั่วคราว (ข้อมูลอยู่ครบ)", "docker compose stop"),
-         row("แก้ code/อัปเดต แล้ว build ใหม่", "docker compose up -d --build"),
-         row("รีสตาร์ทเฉพาะ backend", "docker compose restart backend"),
-         row("เลิกใช้งานถาวร + ลบข้อมูล", "docker compose down -v &nbsp; <b>⚠ ลบข้อมูลทั้งหมด</b>")],
-        [62 * mm, 108 * mm]))
-    el.append(Paragraph("ตั้งค่าให้ Docker Desktop เริ่มเองตอนบูต: Docker Desktop → "
-                        "Settings → General → “Start Docker Desktop when you sign in” "
-                        "และใส่โฟลเดอร์โปรเจคเป็น shortcut auto-start ได้ "
-                        "(Settings → General → “Open Docker Desktop at startup” "
-                        "หรือ Task Scheduler รัน <font face='Courier'>docker compose "
-                        "start</font> ตอนล็อกอิน)", BODY))
+<h1>7. สำรองข้อมูลและกู้คืน</h1>
+{p("โลโก้ ไฟล์ PDF ที่อัปโหลด และงานที่บันทึกไว้ (presets) เก็บใน volume ชื่อ "
+   "<code>pdf-logo-stamper_stamper_data</code> — ชื่อจริงจะขึ้นต้นด้วยชื่อโฟลเดอร์โปรเจกต์ "
+   "ตรวจได้ด้วยการรัน <code>docker volume ls</code> ข้อมูลไม่หายไปเมื่อรีสตาร์ทหรืออัปเดต "
+   "แต่จะถูกลบเมื่อใช้ <code>down -v</code> จึงควรมีไฟล์สำรองเสมอ:")}
+{code("# backup -> stamper-backup.tgz in current folder\ndocker run --rm "
+      "-v pdf-logo-stamper_stamper_data:/data -v ${PWD}:/backup `\n"
+      "    alpine tar czf /backup/stamper-backup.tgz -C /data .\n\n"
+      "# restore onto a new machine (before the first up -d is fine)\n"
+      "docker volume create pdf-logo-stamper_stamper_data\n"
+      "docker run --rm "
+      "-v pdf-logo-stamper_stamper_data:/data -v ${PWD}:/backup `\n"
+      '    alpine sh -c "cd /data && tar xzf /backup/stamper-backup.tgz"')}
+{note("ควรเก็บไฟล์ backup ไว้บน drive อื่นหรือ shared drive ไม่ใช่โฟลเดอร์เดียวกับโปรเจกต์")}
 
-    # ---------- 7. ข้อมูล/สำรอง ----------
-    el.append(Paragraph("7. ข้อมูลและการสำรอง (backup)", H1))
-    el.append(Paragraph("โลโก้, ไฟล์ PDF และ “งานที่บันทึกไว้” (presets) เก็บใน volume "
-                        "ชื่อ <font face='Courier'>pdf-logo-stamper_stamper_data</font> "
-                        "— ไม่หายตอน restart/update แต่หายตอน <font face='Courier'>down "
-                        "-v</font> ควร backup เป็นประจำ:", BODY))
-    el.append(code("# backup -> stamper-backup.tgz in current folder\n"
-        "docker run --rm -v pdf-logo-stamper_stamper_data:/data -v ${PWD}:/backup `\n"
-        "    alpine tar czf /backup/stamper-backup.tgz -C /data .\n\n"
-        "# restore onto a new machine (before the first up -d is fine)\n"
-        "docker volume create pdf-logo-stamper_stamper_data\n"
-        "docker run --rm -v pdf-logo-stamper_stamper_data:/data -v ${PWD}:/backup `\n"
-        '    alpine sh -c "cd /data &amp;&amp; tar xzf /backup/stamper-backup.tgz"'))
-    el.append(note("ชื่อย่อของ volume ขึ้นกับชื่อโฟลเดอร์โปรเจค — ตรวจชื่อจริงด้วย "
-                   "<font face='Courier'>docker volume ls</font>"))
+<h1>8. การปรับค่าผ่านไฟล์ .env</h1>
+{p("สร้างไฟล์ชื่อ <code>.env</code> ในโฟลเดอร์โปรเจกต์ (ถ้ายังไม่มีให้สร้างใหม่เอง) "
+   "เพื่อเปลี่ยนพอร์ตหรือค่าต่าง ๆ ของระบบ:")}
+{code("FRONTEND_PORT=8090\nBACKEND_DEBUG_PORT=9012\nPREVIEW_DPI=110\n"
+      "MAX_PDF_MB=50\nMAX_COPIES=200")}
+{table(["ตัวแปร", "ความหมาย", "ค่าเริ่มต้น"], [
+    ["FRONTEND_PORT", "พอร์ตของหน้าเว็บที่ทีมใช้งาน (เปลี่ยนถ้าชนกับโปรแกรมอื่น)", "8090"],
+    ["BACKEND_DEBUG_PORT", "พอร์ตเอกสาร API (/docs) — เข้าถึงจากเครื่องที่ติดตั้งเท่านั้น", "9012"],
+    ["PREVIEW_DPI", "ความละเอียดของภาพตัวอย่างในหน้าเว็บ (110–200)", "110"],
+    ["MAX_PDF_MB", "ขนาดไฟล์ PDF สูงสุดต่อไฟล์ (MB)", "50"],
+    ["MAX_COPIES", "จำนวนสำเนาสูงสุดต่อครั้ง", "200"],
+])}
+{p("หลังแก้ไขไฟล์ .env ให้รัน <code>docker compose up -d</code> อีกครั้ง "
+   "(ไม่ต้องใช้ --build)")}
 
-    # ---------- 8. ปรับพารามิเตอร์ ----------
-    el.append(Paragraph("8. ปรับพอร์ตและค่าต่าง ๆ ผ่าน .env", H1))
-    el.append(Paragraph("สร้างไฟล์ <font face='Courier'>.env</font> ในโฟลเดอร์โปรเจค "
-                        "(ถ้าพอร์ต 8090 ชนกับของอื่นหรืออยากเปลี่ยน):", BODY))
-    el.append(code("FRONTEND_PORT=8090      # web port the team uses\n"
-        "BACKEND_DEBUG_PORT=9012 # API /docs port (only this machine)\n"
-        "PREVIEW_DPI=110         # preview resolution (110-200)\n"
-        "MAX_PDF_MB=50           # max PDF size per file\n"
-        "MAX_COPIES=200          # max copies per stamp run"))
-    el.append(Paragraph("หลังแก้ .env ให้รัน <font face='Courier'>docker compose up -d</font> "
-                        "ใหม่ (ไม่ต้อง --build)", BODY))
+<h1>9. แก้ปัญหาที่พบบ่อย</h1>
+{table(["อาการ", "สาเหตุและการแก้ไข"], [
+    ["เปิด http://localhost:8090 ไม่ได้",
+     "Docker Desktop ยังไม่ทำงาน หรือคอนเทนเนอร์ยังไม่เริ่ม — รัน "
+     "<code>docker compose ps</code> เพื่อตรวจสถานะ ถ้ายังไม่ได้ให้รัน "
+     "<code>docker compose up -d --build</code> แล้วดู log ที่ "
+     "<code>docker compose logs backend</code>"],
+    ["error เรื่องพอร์ต 8090 ถูกใช้งานอยู่แล้ว",
+     "เปลี่ยน <code>FRONTEND_PORT=8091</code> ในไฟล์ .env แล้วรัน "
+     "<code>docker compose up -d</code>"],
+    ["build ไม่ผ่าน หรือดาวน์โหลดช้ามาก",
+     "อินเทอร์เน็ตช้าหรือถูกจำกัด — ลองใหม่อีกครั้ง หรือตั้ง proxy ที่ "
+     "Docker Desktop → Settings → Resources → Proxies"],
+    ["คำสั่ง docker compose ไม่ทำงาน / WSL error",
+     "Docker Desktop เวอร์ชันเก่า — อัปเดตเป็นเวอร์ชันล่าสุด รัน "
+     "<code>wsl --update</code> และตรวจว่าเปิด virtualization ใน BIOS แล้ว"],
+    ["เครื่องอื่นเข้าผ่าน LAN ไม่ได้",
+     "ยังไม่ได้เปิด firewall ตามข้อ 5, อยู่คนละวง LAN กับเครื่องที่ติดตั้ง, "
+     "หรือ IP เปลี่ยน — ตรวจด้วยคำสั่ง ping ก่อน"],
+    ["อัปเดตแอปแล้วหน้าเว็บยังเป็นแบบเดิม",
+     "เบราว์เซอร์จำหน้าเก่าไว้ — กด <b>Ctrl+F5</b> (hard refresh)"],
+    ["อัปโหลดไฟล์แล้ว preview ไม่แสดง",
+     "ตรวจ <code>docker compose ps</code> ว่า backend สถานะ Up (healthy) "
+     "แล้วดู log ตามข้อแรก"],
+    ["ข้อมูลงานเดิมหายไป",
+     "เกิดจากการใช้ <code>down -v</code> — กู้คืนได้จากไฟล์ "
+     "stamper-backup.tgz ตามข้อ 7 เท่านั้น"],
+])}
 
-    # ---------- 9. แก้ปัญหา ----------
-    el.append(Paragraph("9. แก้ปัญหาที่พบบ่อย", H1))
-    el.append(table(
-        th("อาการ", "สาเหตุ/วิธีแก้"),
-        [row("เปิด http://localhost:8090 ไม่ได้เลย",
-             "Docker Desktop ยังไม่รัน หรือ container ไม่ขึ้น — "
-             "รัน <font face='Courier'>docker compose ps</font> ถ้าว่าง/ลงไม่ได้ "
-             "ให้ <font face='Courier'>docker compose up -d --build</font> แล้วดู log: "
-             "<font face='Courier'>docker compose logs backend</font>"),
-         row("error เรื่อง port 8090 ถูกใช้",
-             "ตั้ง <font face='Courier'>FRONTEND_PORT=8091</font> ใน .env แล้ว "
-             "<font face='Courier'>docker compose up -d</font>"),
-         row("build ไม่ผ่าน / โหลดช้ามาก",
-             "เน็ตถูกบล็อก/ช้า — ลองใหม่ หรือตั้งค่า proxy ใน Docker Desktop "
-             "→ Settings → Resources → Proxies"),
-         row("docker compose ไม่รู้จักคำสั่ง / WSL error",
-             "Docker Desktop เก่า — อัปเดตเป็นเวอร์ชันล่าสุด, รัน "
-             "<font face='Courier'>wsl --update</font>, เปิด virtualization ใน BIOS"),
-         row("เครื่องอื่นเข้า LAN ไม่ได้",
-             "ยังไม่ได้เปิดไฟร์วอลล์ (ข้อ 5) หรือคนละวง LAN — ทดสอบ ping ก่อน"),
-         row("หน้าเว็บเก่าค้าง (อัปเดตแล้วภาพไม่เปลี่ยน)",
-             "กด Ctrl+F5 (hard refresh) ที่เบราว์เซอร์"),
-         row("อัปโหลดไฟล์แล้วไม่ขึ้น preview",
-             "ตรวจ <font face='Courier'>docker compose ps</font> ว่า backend healthy, "
-             "ดู log ตามข้อบน"),
-         row("ข้อมูลงานเดิมหาย",
-             "ไม่เคยทำ backup แล้วเผลอ <font face='Courier'>down -v</font> — "
-             "กู้จากไฟล์ backup.tgz (ข้อ 7) เท่านั้น")],
-        [52 * mm, 118 * mm]))
-
-    # ---------- 10. checklist ----------
-    el.append(Paragraph("10. Checklist หลังติดตั้งเสร็จ", H1))
-    for i, t in enumerate([
-            "Docker Desktop ขึ้น “Engine running”",
-            "<font face='Courier'>docker compose ps</font> — ทั้ง 2 ตัว Up (healthy)",
-            "เปิด http://localhost:8090 เห็นหน้าเว็บ",
-            "อัปโหลดโลโก้ + PDF ทดลอง → preview เห็น watermark ตรงตามตั้ง",
-            "กด Stamp ได้ดาวน์โหลดไฟล์ PDF/ZIP ผลลัพธ์ถูกต้อง",
-            "บันทึกงาน (preset) → reload → chip ยังอยู่",
-            "(ถ้าใช้ทั้งทีม) เครื่องอื่นเข้าผ่าน http://&lt;ip&gt;:8090 ได้",
-            "ตั้งเวลา/นิสัย backup volume สม่ำเสมอ"], 1):
-        el.append(Paragraph(f"<font face='Courier'>[&nbsp;&nbsp;]</font> {t}", BULLET))
-    el.append(Spacer(1, 8))
-    el.append(Paragraph("—— จบคู่มือ — มีปัญหาที่แก้ตามนี้ไม่ได้อัดหน้าจอ error "
-                        "พร้อมผลของ <font face='Courier'>docker compose logs backend</font> "
-                        "ส่งให้ Hermes ได้เลยครับ ——", SMALL))
-
-    doc.build(el, onFirstPage=cover, onLaterPages=footer)
+<h1>10. รายการตรวจรับหลังติดตั้ง</h1>
+{checks([
+    "Docker Desktop แสดง “Engine running”",
+    "<code>docker compose ps</code> ทั้ง backend และ frontend อยู่ในสถานะ Up (healthy)",
+    "เปิด <code>http://localhost:8090</code> แล้วเห็นหน้าจอแอป",
+    "อัปโหลดโลโก้และไฟล์ PDF ทดลอง แล้วเห็น watermark ตรงตามที่ตั้งไว้ใน preview",
+    "กด Stamp แล้วดาวน์โหลดได้ไฟล์ PDF/ZIP ครบถ้วนถูกต้อง (ชื่อไฟล์ภาษาไทยใช้ได้)",
+    "บันทึกงาน (preset) แล้ว reload หน้าเว็บ — ชื่องานยังคงอยู่",
+    "(กรณีใช้ทั้งทีม) เครื่องอื่นเปิดผ่าน <code>http://&lt;ip&gt;:8090</code> ได้",
+    "จัดตารางสำรองข้อมูล (backup volume) เป็นประจำ",
+])}
+{p('<span style="color:#5C564A;font-size:9pt">—— จบคู่มือ —— หากแก้ตามนี้แล้วยังไม่หาย '
+   'กรุณาบันทึกภาพหน้าจอที่แสดง error พร้อมผลของคำสั่ง '
+   '<code>docker compose logs backend</code> ส่งให้ทีมพัฒนาระบบ ——</span>')}
+"""
+    html = (f"<html><head><meta charset='utf-8'>"
+            f"<style>{CSS % {'sar': FONTS / 'Sarabun-Regular.ttf', 'sarb': FONTS / 'Sarabun-Bold.ttf'}}</style>"
+            f"</head><body>{body}</body></html>")
+    (HERE / "_manual.html").write_text(html, encoding="utf-8")
+    HTML(string=html, base_url=str(HERE)).write_pdf(str(OUT))
     print("built:", OUT, OUT.stat().st_size, "bytes")
 
 

@@ -13,7 +13,11 @@
 
 ## รันด้วย Docker (แนะนำ)
 
+Repo: **github.com/nirut9999/pdf-logo-stamper** (private — ต้องได้รับสิทธิ์อ่าน)
+
 ```bash
+git clone https://github.com/nirut9999/pdf-logo-stamper.git
+cd pdf-logo-stamper
 docker compose up -d --build
 # เปิด http://localhost:8090
 ```
@@ -31,7 +35,7 @@ docker compose -f docker-compose.dev.yml up
 
 ```bash
 cd backend && pip install -r requirements.txt -r requirements-dev.txt
-python3 -m pytest -q        # 46 tests — geometry pixel-level + API + copies + Sarabun/ไทย
+python3 -m pytest -q        # 54 tests — geometry pixel-level + API + copies + presets + Sarabun/ไทย
 ```
 
 ## API (curl examples)
