@@ -16,7 +16,7 @@ Web app สำหรับวาง watermark "โลโก้ + ข้อคว
 ## 4. Plan & Roadmap
 - [ ] range สำเนาเริ่มต้น/จบ (เช่น No.101..300) ถ้าผู้ใช้ต้องการ numbering ต่อชุด
 - [ ] ตำแหน่งมุมอื่น (ซ้ายบน/กลางบน) ถ้า demand มา — engine รองรับแล้ว ขาดแค่ UI anchor select
-- [x] push ขึ้น remote — **private** @ github.com/nirut9999/pdf-logo-stamper (2026-10-14)
+- [x] push ขึ้น remote — **public** @ github.com/nirut9999/pdf-logo-stamper (2026-10-14)
 
 ## 5. Architecture
 ```

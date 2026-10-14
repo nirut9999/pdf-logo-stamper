@@ -151,16 +151,14 @@ def build() -> None:
 {p("ถ้าเห็นข้อความ “Hello from Docker!” แสดงว่าเครื่องพร้อมติดตั้งแอปแล้ว "
    "หากขึ้น error เรื่อง virtualization หรือ WSL ให้กลับไปทำข้อ 2.2")}
 
-<h1>3. ดึงโค้ดจาก GitHub (private repository)</h1>
-{p("โค้ดเก็บไว้ที่ <b>github.com/nirut9999/pdf-logo-stamper</b> (private) — "
-   "ผู้ที่จะติดตั้งต้องมีสิทธิ์อ่าน repo; เจ้าของ repo เพิ่ม collaborator "
-   "ให้จากหน้า Settings → Collaborators ของโปรเจกต์")}
+<h1>3. ดึงโค้ดจาก GitHub (public repository)</h1>
+{p("โค้ดเก็บไว้ที่ <b>github.com/nirut9999/pdf-logo-stamper</b> (public) — "
+   "ดาวน์โหลดได้ทันที ไม่ต้องใช้บัญชี GitHub หรือขออนุญาต")}
 {p("บนเครื่อง Windows: ติดตั้ง <b>Git for Windows</b> จาก <b>git-scm.com</b> ก่อน "
    "(มาพร้อม Git Credential Manager) แล้วเปิด PowerShell:")}
 {code("cd C:\\\ngit clone https://github.com/nirut9999/pdf-logo-stamper.git\ncd pdf-logo-stamper")}
-{p("ครั้งแรกที่ clone จะมีหน้าต่างเบราว์เซอร์เด้งให้ล็อกอินบัญชี GitHub — "
-   "ยืนยันเสร็จแล้วโหลดทั้งโปรเจกต์ลงมาเองอัตโนมัติ "
-   "ครั้งถัดไปเมื่อต้องการรับเวอร์ชันใหม่ ก็เพียงรัน <code>git pull</code> ในโฟลเดอร์เดิม")}
+{p("เมื่อ clone เสร็จจะได้โฟลเดอร์ <code>pdf-logo-stamper</code> พร้อมใช้ "
+   "ครั้งถัดไปเมื่อต้องการรับเวอร์ชันใหม่ ก็เพียงรัน <code>git pull</code> ในโฟลเดอร์เดิม") }
 {note("กรณีเครื่องไม่มี Git หรือเน็ตถูกบล็อก ใช้วิธี ZIP จากเครื่องต้นทางแทน "
       "(<code>zip -r pdf-logo-stamper.zip pdf-logo-stamper -x \"*/node_modules/*\" "
       "\"*/.git/*\" \"*/__pycache__/*\" \"*/dist/*\"</code> แล้ว Extract All บน Windows) — "

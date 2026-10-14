@@ -13,7 +13,7 @@
 
 ## รันด้วย Docker (แนะนำ)
 
-Repo: **github.com/nirut9999/pdf-logo-stamper** (private — ต้องได้รับสิทธิ์อ่าน)
+Repo: **github.com/nirut9999/pdf-logo-stamper** (public — clone ได้เลยไม่ต้องขออนุญาต)
 
 ```bash
 git clone https://github.com/nirut9999/pdf-logo-stamper.git

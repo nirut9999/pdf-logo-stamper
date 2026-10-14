@@ -1,6 +1,8 @@
 # Changelog — PDF Logo Stamper
 
 ## 2026-10-14 (docs)
+- 🔓 เปลี่ยน repo เป็น **public** (สแกน history ทั้งสาย — ไม่มี PII/secret/upload ในทุก commit เลย) · คู่มือข้อ 3 = clone ไม่ต้องล็อกอิน, README/PROJECT อัปเดตตาม
+
 - 🔒 สร้าง **private GitHub repo** `github.com/nirut9999/pdf-logo-stamper` — push ทั้งโปรเจกต์ (ไม่มี PII: uploads อยู่ในโลกของ docker volume เท่านั้น)
 - 📕 **คูมือ PDF เขียนใหม่ด้วย WeasyPrint (Pango/HarfBuzz shaping)** — เวอร์ชัน reportlab เดิมวางวรรณยุกต์ไทยผิดตำแหน่งทั้งเล่ม (ไม่ทำ text shaping); สร้างใหม่ด้วย `docs/build_manual.py` (ต้องมี weasyprint)
 - 📕 คูมือเปลี่ยนวิธีขนโค้ดเป็น `git clone` (Git for Windows + GCM login) แทน ZIP, ZIP เป็น fallback, หัวข้อ 8 ทำตารางอธิบายตัวแปร .env, เก็บ `docs/_manual.html` พ้น git
